@@ -1,0 +1,105 @@
+{
+  "title": "LobeHub",
+  "config": {
+    "abort": {
+      "already_configured": "已配置"
+    },
+    "error": {
+      "auth": "无法验证 API 密钥"
+    },
+    "step": {
+      "user": {
+        "title": "配置 LobeHub",
+        "description": "将 Home Assistant 连接到你的 LobeHub 账户。",
+        "data": {
+          "base_url": "基础地址",
+          "api_key": "API 密钥",
+          "default_runtime": "默认运行环境"
+        }
+      },
+      "select_agents": {
+        "title": "选择代理",
+        "description": "选择一个或多个要在 Home Assistant 中暴露的代理。",
+        "data": {
+          "selected_agents": "代理"
+        }
+      },
+      "agent_config": {
+        "title": "配置代理",
+        "description": "为所选代理设置单独覆盖项。",
+        "data": {
+          "agent_title": "代理标题",
+          "agent_model": "模型",
+          "agent_provider": "提供方",
+          "agent_runtime": "运行环境",
+          "agent_allow_task": "允许任务执行"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "配置代理",
+        "description": "调整暴露哪些代理以及它们的行为。",
+        "data": {
+          "selected_agents": "代理"
+        }
+      },
+      "agent_config": {
+        "title": "配置代理",
+        "data": {
+          "agent_title": "代理标题",
+          "agent_model": "模型",
+          "agent_provider": "提供方",
+          "agent_runtime": "运行环境",
+          "agent_allow_task": "允许任务执行"
+        }
+      }
+    }
+  },
+  "services": {
+    "send_message": {
+      "name": "发送消息",
+      "description": "向所选代理的会话发送一条消息。",
+      "fields": {
+        "agent_id": "代理",
+        "message": "消息",
+        "client_id": "客户端 ID",
+        "context": "上下文"
+      }
+    },
+    "new_topic": {
+      "name": "新建话题",
+      "description": "为所选代理创建一个新话题并设为当前活动话题。",
+      "fields": {
+        "agent_id": "代理",
+        "topic_title": "话题标题"
+      }
+    },
+    "switch_topic": {
+      "name": "切换话题",
+      "description": "将所选代理会话切换到已有话题。",
+      "fields": {
+        "agent_id": "代理",
+        "topic_id": "话题 ID"
+      }
+    },
+    "run_task": {
+      "name": "触发任务",
+      "description": "触发代理的任务执行接口，适合非对话类动作。",
+      "fields": {
+        "agent_id": "代理",
+        "instruction": "指令",
+        "context": "上下文",
+        "model": "模型",
+        "provider": "提供方",
+        "runtime": "运行环境",
+        "previous_response_id": "上一次响应 ID",
+        "stream": "流式输出",
+        "tools": "工具"
+      }
+    }
+  }
+}
+

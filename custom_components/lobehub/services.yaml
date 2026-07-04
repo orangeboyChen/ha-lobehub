@@ -1,0 +1,107 @@
+send_message:
+  name: Send message
+  description: Send a message into the selected agent conversation.
+  fields:
+    agent_id:
+      required: true
+      example: "agent-1"
+      selector:
+        text:
+    message:
+      required: true
+      example: "Order a latte"
+      selector:
+        text:
+    client_id:
+      required: false
+      example: "home-assistant"
+      selector:
+        text:
+    context:
+      required: false
+      example:
+        location: near office
+      selector:
+        object:
+
+new_topic:
+  name: New topic
+  description: Create a new topic for the selected agent and make it active.
+  fields:
+    agent_id:
+      required: true
+      example: "agent-1"
+      selector:
+        text:
+    topic_title:
+      required: true
+      example: "Buy coffee"
+      selector:
+        text:
+
+switch_topic:
+  name: Switch topic
+  description: Switch the selected agent conversation to an existing topic.
+  fields:
+    agent_id:
+      required: true
+      example: "agent-1"
+      selector:
+        text:
+    topic_id:
+      required: true
+      example: "topic-2"
+      selector:
+        text:
+
+run_task:
+  name: Run task
+  description: Trigger the agent task endpoint for a non-topic action.
+  fields:
+    agent_id:
+      required: true
+      example: "agent-1"
+      selector:
+        text:
+    instruction:
+      required: true
+      example: "Buy coffee at the nearest Luckin"
+      selector:
+        text:
+    context:
+      required: false
+      example:
+        location: near office
+      selector:
+        object:
+    model:
+      required: false
+      example: "gpt-4o-mini"
+      selector:
+        text:
+    provider:
+      required: false
+      example: "openai"
+      selector:
+        text:
+    runtime:
+      required: false
+      example: "gateway"
+      selector:
+        text:
+    previous_response_id:
+      required: false
+      example: "resp-1"
+      selector:
+        text:
+    stream:
+      required: false
+      example: false
+      selector:
+        boolean:
+    tools:
+      required: false
+      example: []
+      selector:
+        object:
+
