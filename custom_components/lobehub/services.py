@@ -65,26 +65,35 @@ _TASK_STATUSES = (
     "canceled",
 )
 
-SEND_MESSAGE_SCHEMA = vol.Schema(
+
+def _service_schema(fields: dict[object, object]) -> vol.Schema:
+    """Allow Home Assistant target selectors alongside service fields."""
+
+    # Home Assistant injects entity_id, device_id, area_id, and related target
+    # selectors into ServiceCall.data before validating the service schema.
+    return vol.Schema(fields, extra=vol.ALLOW_EXTRA)
+
+
+SEND_MESSAGE_SCHEMA = _service_schema(
     {
         vol.Required(CONF_MESSAGE): str,
         vol.Optional(CONF_CONTEXT): dict,
     }
 )
 
-NEW_TOPIC_SCHEMA = vol.Schema(
+NEW_TOPIC_SCHEMA = _service_schema(
     {
         vol.Required(CONF_TOPIC_TITLE): str,
     }
 )
 
-SWITCH_TOPIC_SCHEMA = vol.Schema(
+SWITCH_TOPIC_SCHEMA = _service_schema(
     {
         vol.Required(CONF_TOPIC_ID): str,
     }
 )
 
-RUN_TASK_SCHEMA = vol.Schema(
+RUN_TASK_SCHEMA = _service_schema(
     {
         vol.Required(CONF_INSTRUCTION): str,
         vol.Optional(CONF_CONTEXT): dict,
@@ -92,7 +101,7 @@ RUN_TASK_SCHEMA = vol.Schema(
     }
 )
 
-LIST_TASKS_SCHEMA = vol.Schema(
+LIST_TASKS_SCHEMA = _service_schema(
     {
         vol.Optional(CONF_ASSIGNEE_AGENT_ID): str,
         vol.Optional(CONF_LIMIT, default=50): vol.All(
@@ -106,13 +115,13 @@ LIST_TASKS_SCHEMA = vol.Schema(
     }
 )
 
-GET_TASK_SCHEMA = vol.Schema(
+GET_TASK_SCHEMA = _service_schema(
     {
         vol.Required(CONF_TASK): str,
     }
 )
 
-RUN_SAVED_TASK_SCHEMA = vol.Schema(
+RUN_SAVED_TASK_SCHEMA = _service_schema(
     {
         vol.Required(CONF_TASK): str,
         vol.Optional(CONF_CONTINUE_TOPIC_ID): str,
@@ -120,11 +129,11 @@ RUN_SAVED_TASK_SCHEMA = vol.Schema(
     }
 )
 
-LIST_AGENTS_SCHEMA = vol.Schema({})
+LIST_AGENTS_SCHEMA = _service_schema({})
 
-LIST_DEVICES_SCHEMA = vol.Schema({})
+LIST_DEVICES_SCHEMA = _service_schema({})
 
-UPDATE_AGENT_SETTINGS_SCHEMA = vol.Schema(
+UPDATE_AGENT_SETTINGS_SCHEMA = _service_schema(
     {
         vol.Optional(CONF_MODEL): str,
         vol.Optional(CONF_PROVIDER): str,

@@ -23,6 +23,7 @@ from custom_components.lobehub.entry_state import (
 from custom_components.lobehub.models import AgentBinding, ConversationState
 from custom_components.lobehub.models import AgentSummary
 from custom_components.lobehub.runtime import LobeHubRuntime
+from custom_components.lobehub.services import LIST_AGENTS_SCHEMA
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -80,6 +81,9 @@ class FakeIntegration:
         assert self._conversation is not None
         self.sent.append((message, conversation_id, context))
         return self._conversation, {"final_output_text": "Done"}
+
+    def discover_agents(self) -> dict[str, AgentBinding]:
+        return {}
 
 
 def test_runtime_persists_one_agent_and_active_topic() -> None:
@@ -146,6 +150,31 @@ def test_runtime_switch_topic_replaces_active_conversation() -> None:
 
     assert switched.id == "topic-existing"
     assert runtime.conversation is switched
+
+
+def test_list_agents_includes_configured_default_agent() -> None:
+    integration = FakeIntegration()
+    runtime = LobeHubRuntime(integration)  # type: ignore[arg-type]
+    runtime.configure(AgentBinding(agent_id="agent-default", title="Default"))
+
+    assert runtime.list_agents() == [
+        {
+            "id": "agent-default",
+            "agent_id": "agent-default",
+            "title": "Default",
+            "model": None,
+            "provider": None,
+            "runtime": "auto",
+            "bound_device_id": None,
+            "workspace_id": None,
+        }
+    ]
+
+
+def test_list_agents_schema_accepts_home_assistant_target() -> None:
+    assert LIST_AGENTS_SCHEMA({"entity_id": "conversation.lobehub_default"}) == {
+        "entity_id": "conversation.lobehub_default"
+    }
 
 
 def test_config_flow_creates_one_entry_per_selected_agent(monkeypatch) -> None:
