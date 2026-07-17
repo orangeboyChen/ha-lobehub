@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -181,7 +181,7 @@ def _resolve_target_entries(
     call: ServiceCall,
 ) -> list[tuple[str, LobeHubConfigEntry]]:
     entries = [
-        cast(LobeHubConfigEntry, entry)
+        entry
         for entry in hass.config_entries.async_loaded_entries(DOMAIN)
         if entry.state is ConfigEntryState.LOADED
     ]
@@ -220,7 +220,7 @@ def _resolve_target_entries(
         if config_entry.entry_id in resolved_entry_ids:
             continue
         resolved_entry_ids.add(config_entry.entry_id)
-        resolved.append((entity_id, cast(LobeHubConfigEntry, config_entry)))
+        resolved.append((entity_id, config_entry))
 
     if not resolved:
         raise HomeAssistantError("No targeted LobeHub conversation entity was found")
