@@ -194,10 +194,18 @@ def _device_option_from_item(item: Any) -> dict[str, Any] | None:
     if not isinstance(device_id, str) or not device_id:
         return None
 
+    online = item.get("online")
+    # Current LobeHub responses provide ``online`` directly. Older gateway
+    # responses expose only their live connection list, which carries the same
+    # information: a device is online when it has at least one channel.
+    if not isinstance(online, bool):
+        channels = item.get("channels")
+        online = isinstance(channels, list) and bool(channels)
+
     return {
         "device_id": device_id,
         "label": str(item.get("friendlyName") or item.get("hostname") or device_id),
-        "online": bool(item.get("online", False)),
+        "online": online,
         "scope": item.get("scope"),
         "platform": item.get("platform"),
     }
