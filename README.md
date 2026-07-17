@@ -5,6 +5,12 @@
 Home Assistant custom integration for LobeHub. Every configured LobeHub agent
 is exposed as an independent Home Assistant conversation entity.
 
+<div align="center">
+
+<img src="docs/lobehub-home-assistant-overview.svg" alt="LobeHub Home Assistant Integration Overview" width="900" />
+
+</div>
+
 ## Requirements
 
 - Home Assistant 2026.7 or newer
