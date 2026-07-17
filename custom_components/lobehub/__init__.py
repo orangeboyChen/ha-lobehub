@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+from dataclasses import replace
+from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
@@ -15,7 +18,9 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     CONF_API_KEY,
     CONF_BASE_URL,
+    CONF_CONVERSATION,
     CONF_DEFAULT_RUNTIME,
+    CONF_SELECTED_AGENT,
     DEFAULT_RUNTIME,
     DOMAIN,
     SYNC_INTERVAL,
@@ -26,7 +31,15 @@ from .entry_state import (
     get_persisted_conversation,
 )
 from .exceptions import ApiError
-from .models import AgentBinding, ConversationState, IntegrationConfig
+from .models import (
+    AgentBinding,
+    ConversationState,
+    IntegrationConfig,
+    binding_from_data,
+    binding_to_data,
+    conversation_from_data,
+    conversation_to_data,
+)
 from .runtime import LobeHubRuntime, build_runtime
 from .services import async_register_services
 
@@ -36,6 +49,124 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 _PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
 type LobeHubConfigEntry = ConfigEntry[LobeHubRuntime]
+_CONFIG_ENTRY_VERSION = 2
+_LEGACY_SELECTED_AGENTS = "selected_agents"
+_LEGACY_CONVERSATIONS = "conversations"
+_SYNC_GROUPS = "sync_groups"
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate legacy multi-agent state into one entry per agent."""
+
+    if entry.version >= _CONFIG_ENTRY_VERSION:
+        return True
+
+    raw_bindings = (
+        entry.options.get(_LEGACY_SELECTED_AGENTS)
+        or entry.data.get(_LEGACY_SELECTED_AGENTS)
+        or []
+    )
+    if not isinstance(raw_bindings, list):
+        return False
+
+    bindings: list[AgentBinding] = []
+    seen_agent_ids: set[str] = set()
+    for raw_binding in raw_bindings:
+        if not isinstance(raw_binding, dict):
+            continue
+        binding = binding_from_data(raw_binding)
+        if not binding.agent_id or binding.agent_id in seen_agent_ids:
+            continue
+        seen_agent_ids.add(binding.agent_id)
+        bindings.append(binding)
+    if not bindings:
+        _LOGGER.error("Cannot migrate LobeHub entry %s: no agent bindings", entry.entry_id)
+        return False
+
+    raw_conversations = (
+        entry.options.get(_LEGACY_CONVERSATIONS)
+        or entry.data.get(_LEGACY_CONVERSATIONS)
+        or []
+    )
+    conversations: dict[str, ConversationState] = {}
+    if isinstance(raw_conversations, list):
+        for raw_conversation in raw_conversations:
+            if not isinstance(raw_conversation, dict):
+                continue
+            conversation = conversation_from_data(raw_conversation)
+            if conversation.agent_id and conversation.id:
+                conversations[conversation.agent_id] = conversation
+
+    connection_data = {
+        key: value
+        for key, value in entry.data.items()
+        if key not in {_LEGACY_SELECTED_AGENTS, _LEGACY_CONVERSATIONS, CONF_SELECTED_AGENT}
+    }
+    base_url = str(connection_data.get(CONF_BASE_URL, ""))
+    existing_unique_ids = {
+        configured.unique_id
+        for configured in hass.config_entries.async_entries(DOMAIN)
+        if configured.entry_id != entry.entry_id
+    }
+
+    primary = bindings[0]
+    primary_unique_id = f"{base_url}::{primary.agent_id}"
+    if primary_unique_id in existing_unique_ids:
+        _LOGGER.error(
+            "Cannot migrate LobeHub entry %s: agent %s is already configured",
+            entry.entry_id,
+            primary.agent_id,
+        )
+        return False
+
+    def entry_options(binding: AgentBinding) -> dict[str, object]:
+        options = {
+            key: value
+            for key, value in entry.options.items()
+            if key not in {
+                _LEGACY_SELECTED_AGENTS,
+                _LEGACY_CONVERSATIONS,
+                CONF_SELECTED_AGENT,
+                CONF_CONVERSATION,
+            }
+        }
+        options[CONF_SELECTED_AGENT] = binding_to_data(binding)
+        if conversation := conversations.get(binding.agent_id):
+            options[CONF_CONVERSATION] = conversation_to_data(conversation)
+        return options
+
+    hass.config_entries.async_update_entry(
+        entry,
+        data={**connection_data, CONF_SELECTED_AGENT: binding_to_data(primary)},
+        options=entry_options(primary),
+        title=primary.title or entry.title or "LobeHub",
+        unique_id=primary_unique_id,
+        version=_CONFIG_ENTRY_VERSION,
+    )
+    existing_unique_ids.add(primary_unique_id)
+
+    for binding in bindings[1:]:
+        unique_id = f"{base_url}::{binding.agent_id}"
+        if unique_id in existing_unique_ids:
+            _LOGGER.warning("Skipping already configured LobeHub agent %s", binding.agent_id)
+            continue
+        await hass.config_entries.async_add(
+            ConfigEntry(
+                version=_CONFIG_ENTRY_VERSION,
+                minor_version=entry.minor_version,
+                domain=DOMAIN,
+                title=binding.title or "LobeHub",
+                data={**connection_data, CONF_SELECTED_AGENT: binding_to_data(binding)},
+                options=entry_options(binding),
+                source=entry.source,
+                unique_id=unique_id,
+                discovery_keys=entry.discovery_keys,
+                subentries_data=(),
+            )
+        )
+        existing_unique_ids.add(unique_id)
+
+    return True
 
 
 def _persist_runtime_state(entry: LobeHubConfigEntry) -> dict[str, object]:
@@ -80,34 +211,114 @@ def _validate_and_configure_runtime(runtime: LobeHubRuntime) -> None:
 
 
 async def _async_sync_runtime(hass: HomeAssistant, entry: LobeHubConfigEntry) -> None:
-    """Refresh runtime state without reloading the config entry."""
+    """Refresh all bindings that share this entry's LobeHub connection."""
 
-    if entry.state is not ConfigEntryState.LOADED:
+    connection_key = _connection_key(entry)
+    groups = hass.data.setdefault(DOMAIN, {}).get(_SYNC_GROUPS, {})
+    group = groups.get(connection_key)
+    if group is None:
         return
 
-    runtime = entry.runtime_data
+    await _async_sync_connection(hass, connection_key, group)
+
+
+def _connection_key(entry: ConfigEntry) -> str:
+    """Return an opaque key for entries sharing remote credentials."""
+
+    data = entry.data
+    connection = f"{data[CONF_BASE_URL]}\0{data[CONF_API_KEY]}"
+    return hashlib.sha256(connection.encode()).hexdigest()
+
+
+async def _async_sync_connection(
+    hass: HomeAssistant,
+    connection_key: str,
+    group: dict[str, Any],
+) -> None:
+    """Synchronize one remote Agent list for every entry on a connection."""
+
+    entry_ids = set(group["entry_ids"])
+    entries = {
+        entry.entry_id: cast(LobeHubConfigEntry, entry)
+        for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+        if entry.entry_id in entry_ids and entry.state is ConfigEntryState.LOADED
+    }
+    if not entries:
+        return
+
+    representative = next(iter(entries.values()))
     try:
-        changed = await hass.async_add_executor_job(runtime.refresh_remote_state)
-    except ApiError as err:
-        if runtime.is_remote_agent_missing(err):
-            _LOGGER.warning(
-                "Removing LobeHub entry %s because agent %s no longer exists remotely",
-                entry.entry_id,
-                runtime.agent_id,
-            )
-            await hass.config_entries.async_remove(entry.entry_id)
-            return
-        _LOGGER.exception("LobeHub periodic sync failed for entry %s", entry.entry_id)
+        agents = await hass.async_add_executor_job(
+            representative.runtime_data.integration.client.list_agents
+        )
+    except ApiError:
+        _LOGGER.exception("LobeHub periodic sync failed for connection %s", connection_key)
         return
     except Exception:
-        _LOGGER.exception("LobeHub periodic sync failed for entry %s", entry.entry_id)
+        _LOGGER.exception("LobeHub periodic sync failed for connection %s", connection_key)
         return
 
-    if changed:
-        hass.config_entries.async_update_entry(
-            entry,
-            options=_persist_runtime_state(entry),
-        )
+    remote_agents = {agent.id: agent for agent in agents}
+    for entry_id, entry in entries.items():
+        runtime = entry.runtime_data
+        binding = runtime.agent_binding
+        if binding is None:
+            continue
+        summary = remote_agents.get(binding.agent_id)
+        if summary is None:
+            _LOGGER.warning(
+                "Removing LobeHub entry %s because agent %s no longer exists remotely",
+                entry_id,
+                binding.agent_id,
+            )
+            await hass.config_entries.async_remove(entry_id)
+            continue
+
+        if summary.title and summary.title != binding.title:
+            runtime.agent_binding = replace(binding, title=summary.title)
+            runtime.integration._agent_binding = runtime.agent_binding
+            hass.config_entries.async_update_entry(
+                entry,
+                options=_persist_runtime_state(entry),
+            )
+
+
+def _register_connection_sync(
+    hass: HomeAssistant,
+    entry: LobeHubConfigEntry,
+) -> Any:
+    """Register an entry with its connection's single periodic synchronizer."""
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    groups = domain_data.setdefault(_SYNC_GROUPS, {})
+    connection_key = _connection_key(entry)
+    group = groups.get(connection_key)
+    if group is None:
+        entry_ids: set[str] = set()
+
+        @callback
+        def _schedule_connection_sync(now) -> None:
+            del now
+            hass.async_create_task(_async_sync_connection(hass, connection_key, group))
+
+        group = {
+            "entry_ids": entry_ids,
+            "unsub": async_track_time_interval(hass, _schedule_connection_sync, SYNC_INTERVAL),
+        }
+        groups[connection_key] = group
+
+    entry_ids = group["entry_ids"]
+    entry_ids.add(entry.entry_id)
+
+    @callback
+    def _unregister() -> None:
+        entry_ids.discard(entry.entry_id)
+        if entry_ids:
+            return
+        group["unsub"]()
+        groups.pop(connection_key, None)
+
+    return _unregister
 
 
 @callback
@@ -184,18 +395,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LobeHubConfigEntry) -> b
             options=_persist_runtime_state(entry),
         )
 
-    @callback
-    def _schedule_runtime_sync(now) -> None:
-        del now
-        hass.async_create_task(_async_sync_runtime(hass, entry))
-
-    entry.async_on_unload(
-        async_track_time_interval(
-            hass,
-            _schedule_runtime_sync,
-            SYNC_INTERVAL,
-        )
-    )
+    entry.async_on_unload(_register_connection_sync(hass, entry))
 
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
     return True

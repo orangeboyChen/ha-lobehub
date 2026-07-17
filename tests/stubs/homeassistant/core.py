@@ -19,6 +19,7 @@ class SupportsResponse(Enum):
     """Response support marker accepted by service registration."""
 
     ONLY = "only"
+    OPTIONAL = "optional"
 
 
 class ServiceRegistry:

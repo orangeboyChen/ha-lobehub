@@ -7,7 +7,8 @@
     "error": {
       "agent_list_forbidden": "API 密钥登录成功，但当前 LobeHub 服务器不允许该密钥列出 agents。",
       "auth": "无法验证 API 密钥",
-      "cannot_connect": "已连接，但无法从 LobeHub 加载 agents"
+      "cannot_connect": "已连接，但无法从 LobeHub 加载 agents",
+      "invalid_base_url": "请输入包含 http:// 或 https:// 的有效 LobeHub 地址。"
     },
     "step": {
       "user": {
@@ -15,11 +16,19 @@
         "description": "将 Home Assistant 连接到你的 LobeHub 账户。",
         "data": {
           "base_url": "基础地址",
-          "api_key": "API 密钥"
+          "api_key": "API 密钥",
+          "connection": "LobeHub 连接"
         },
         "data_description": {
           "base_url": "LobeHub 服务器地址，必须包含 https://。",
           "api_key": "在 LobeHub 中创建的 API 密钥。"
+        }
+      },
+      "connection": {
+        "title": "添加 LobeHub 连接",
+        "data": {
+          "base_url": "基础地址",
+          "api_key": "API 密钥"
         }
       },
       "select_agent": {

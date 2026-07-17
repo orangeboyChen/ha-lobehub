@@ -6,7 +6,8 @@
         "error": {
             "agent_list_forbidden": "API key login succeeded, but this LobeHub server does not allow listing agents for this key.",
             "auth": "Unable to validate the API key",
-            "cannot_connect": "Connected, but unable to load agents from LobeHub"
+            "cannot_connect": "Connected, but unable to load agents from LobeHub",
+            "invalid_base_url": "Enter a valid LobeHub URL including http:// or https://."
         },
         "step": {
             "select_agent": {
@@ -24,7 +25,8 @@
             "user": {
                 "data": {
                     "api_key": "API key",
-                    "base_url": "Base URL"
+                    "base_url": "Base URL",
+                    "connection": "LobeHub connection"
                 },
                 "data_description": {
                     "api_key": "An API key created in LobeHub.",
@@ -32,6 +34,13 @@
                 },
                 "description": "Connect Home Assistant to your LobeHub account.",
                 "title": "Set up LobeHub"
+            },
+            "connection": {
+                "data": {
+                    "api_key": "API key",
+                    "base_url": "Base URL"
+                },
+                "title": "Add a LobeHub connection"
             }
         }
     },

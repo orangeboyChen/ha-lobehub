@@ -610,6 +610,15 @@ class LobeHubClient:
             "offset": ((page - 1) * page_size) if page and page_size else None,
         }
         discovered: dict[str, AgentSummary] = {}
+
+        # LobeHub keeps its default LobeAI agent in the virtual ``inbox``
+        # session. ``queryAgents`` intentionally excludes virtual agents, so
+        # use the same endpoint LobeHub uses to load/create that default.
+        default_agent = self._trpc_query("agent.getAgentConfig", {"sessionId": "inbox"})
+        if isinstance(default_agent, dict):
+            agent = self._to_agent(default_agent)
+            if agent.id:
+                discovered[agent.id] = agent
         workspace_ids = [None]
         workspace_ids.extend(
             _normalize_workspace_id(scope.get("id"))
@@ -632,6 +641,8 @@ class LobeHubClient:
                     agents = items
 
             for item in agents:
+                if not isinstance(item, Mapping):
+                    continue
                 agent = self._to_agent(item)
                 if not agent.id or agent.id in discovered:
                     continue
@@ -1286,6 +1297,8 @@ class LobeHubClient:
             or item.get("id")
             or ""
         )
+        if item.get("slug") == "inbox" and raw_title in {"", "inbox"}:
+            raw_title = "LobeAI"
         provider = (
             item.get("provider")
             or meta.get("provider")
