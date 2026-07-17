@@ -1,38 +1,29 @@
 send_message:
-  name: Send message
-  description: Send a message into the selected agent conversation.
+  description: Send one user message to the configured LobeHub agent.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
   fields:
-    agent_id:
-      required: true
-      example: "agent-1"
-      selector:
-        text:
     message:
       required: true
       example: "Order a latte"
       selector:
         text:
-    client_id:
-      required: false
-      example: "home-assistant"
-      selector:
-        text:
     context:
       required: false
       example:
-        location: near office
+        topic_id: "topic-2"
       selector:
         object:
 
 new_topic:
-  name: New topic
-  description: Create a new topic for the selected agent and make it active.
+  description: Create a new LobeHub topic and switch the entity to it.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
   fields:
-    agent_id:
-      required: true
-      example: "agent-1"
-      selector:
-        text:
     topic_title:
       required: true
       example: "Buy coffee"
@@ -40,14 +31,12 @@ new_topic:
         text:
 
 switch_topic:
-  name: Switch topic
-  description: Switch the selected agent conversation to an existing topic.
+  description: Switch the entity to an existing LobeHub topic.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
   fields:
-    agent_id:
-      required: true
-      example: "agent-1"
-      selector:
-        text:
     topic_id:
       required: true
       example: "topic-2"
@@ -55,14 +44,12 @@ switch_topic:
         text:
 
 run_task:
-  name: Run task
-  description: Trigger the agent task endpoint for a non-topic action.
+  description: Run an ad-hoc agent task with the currently configured LobeHub agent.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
   fields:
-    agent_id:
-      required: true
-      example: "agent-1"
-      selector:
-        text:
     instruction:
       required: true
       example: "Buy coffee at the nearest Luckin"
@@ -71,12 +58,126 @@ run_task:
     context:
       required: false
       example:
-        location: near office
+        topic_id: "topic-2"
       selector:
         object:
+    previous_response_id:
+      required: false
+      example: "msg-1"
+      selector:
+        text:
+
+list_tasks:
+  description: List saved LobeHub tasks visible to the targeted agent workspace.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
+  fields:
+    assignee_agent_id:
+      required: false
+      example: "agt_xxx"
+      selector:
+        text:
+    limit:
+      required: false
+      example: 50
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    offset:
+      required: false
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          mode: box
+    parent_task:
+      required: false
+      example: "TASK-1"
+      selector:
+        text:
+    statuses:
+      required: false
+      example:
+        - "backlog"
+        - "running"
+      selector:
+        select:
+          multiple: true
+          options:
+            - "backlog"
+            - "running"
+            - "scheduled"
+            - "paused"
+            - "completed"
+            - "failed"
+            - "canceled"
+
+get_task:
+  description: Get one saved LobeHub task and the topics linked to it.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
+  fields:
+    task:
+      required: true
+      example: "TASK-1 or task_xxx"
+      selector:
+        text:
+
+run_saved_task:
+  description: Run one saved LobeHub task by raw id or identifier such as TASK-1.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
+  fields:
+    task:
+      required: true
+      example: "TASK-1 or task_xxx"
+      selector:
+        text:
+    continue_topic_id:
+      required: false
+      example: "topic_xxx"
+      selector:
+        text:
+    prompt:
+      required: false
+      example: "Continue and summarize the blockers first"
+      selector:
+        text:
+
+list_agents:
+  description: List visible LobeHub agents so Home Assistant actions can retrieve agent IDs.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
+
+list_devices:
+  description: List visible LobeHub execution devices so Home Assistant actions can retrieve device IDs.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
+
+update_agent_settings:
+  description: Update the configured LobeHub agent model, provider, execution target, or bound device.
+  target:
+    entity:
+      domain: conversation
+      integration: lobehub
+  fields:
     model:
       required: false
-      example: "gpt-4o-mini"
+      example: "gpt-5.1"
       selector:
         text:
     provider:
@@ -86,22 +187,25 @@ run_task:
         text:
     runtime:
       required: false
-      example: "gateway"
+      example: "device"
+      selector:
+        select:
+          options:
+            - "none"
+            - "auto"
+            - "local"
+            - "device"
+            - "sandbox"
+    bound_device_id:
+      required: false
+      example: "device_xxx"
       selector:
         text:
-    previous_response_id:
+    topic_policy:
       required: false
-      example: "resp-1"
+      example: "reuse"
       selector:
-        text:
-    stream:
-      required: false
-      example: false
-      selector:
-        boolean:
-    tools:
-      required: false
-      example: []
-      selector:
-        object:
-
+        select:
+          options:
+            - "reuse"
+            - "new"

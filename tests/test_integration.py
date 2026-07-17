@@ -1,85 +1,74 @@
-import pytest
+"""Behavior tests for the single-agent LobeHub integration facade."""
 
-from custom_components.lobehub.client import LobeHubClient
+from __future__ import annotations
+
 from custom_components.lobehub.integration import LobeHubIntegration
-from custom_components.lobehub.models import AgentBinding
-from custom_components.lobehub.models import IntegrationConfig
+from custom_components.lobehub.models import AgentBinding, AgentSummary, IntegrationConfig, TopicSummary
 
 
-def make_transport(responses):
-    calls = []
+class FakeClient:
+    """Client double that models one remote agent and its topic history."""
 
-    def transport(method, url, headers, body):
-        calls.append((method, url, headers, body))
-        return responses.pop(0)
+    def __init__(self) -> None:
+        self.responses: list[dict[str, object]] = []
+        self.topics = {
+            "topic-1": TopicSummary(id="topic-1", title="Coffee", agent_id="agent-1")
+        }
+        self.messages = {
+            "topic-1": [{"id": "assistant-1", "role": "assistant", "content": "Ready"}]
+        }
 
-    return transport, calls
+    def get_agent(self, agent_id: str, *, workspace_id: str | None = None) -> AgentSummary:
+        assert agent_id == "agent-1"
+        return AgentSummary(id=agent_id, title="Coffee", model="gpt-4o-mini", provider="openai")
+
+    def get_topic(self, topic_id: str, *, workspace_id: str | None = None) -> TopicSummary:
+        return self.topics[topic_id]
+
+    def get_topic_messages(self, topic_id: str, *, workspace_id: str | None = None, all_pages: bool = False) -> list[dict[str, str]]:
+        return self.messages[topic_id]
+
+    def create_response(self, **kwargs: object) -> dict[str, object]:
+        self.responses.append(kwargs)
+        return {"topicId": "topic-1", "assistantMessageId": "assistant-1"}
 
 
-def test_end_to_end_agent_selection_and_task_flow():
-    transport, calls = make_transport(
-        [
-            (200, {}, b'{"id":"user-1"}'),
-            (
-                200,
-                {},
-                b'{"agents":[{"id":"agent-1","title":"Coffee","model":"gpt-4o-mini","provider":"openai"}],"total":1}',
-            ),
-            (200, {}, b'{"data":{"id":"topic-1","title":"Coffee chat","agentId":"agent-1"}}'),
-            (200, {}, b'{"data":{"id":"topic-2","title":"Buy coffee","agentId":"agent-1"}}'),
-            (200, {}, b'{"data":{"id":"message-1"}}'),
-            (200, {}, b'{"id":"resp-1","output_text":"done","output":[],"status":"completed"}'),
-        ]
-    )
-    client = LobeHubClient(
-        IntegrationConfig(api_key="sk-lh-1234567890abcd", base_url="https://lobehub.example"),
-        transport=transport,
-    )
+def test_send_message_reuses_active_topic_and_returns_assistant_text() -> None:
+    client = FakeClient()
     integration = LobeHubIntegration(
-        client,
-        IntegrationConfig(api_key="sk-lh-1234567890abcd", base_url="https://lobehub.example"),
+        client,  # type: ignore[arg-type]
+        IntegrationConfig(api_key="test-key", base_url="https://lobehub.example"),
     )
-
-    assert integration.validate()["id"] == "user-1"
-    bindings = integration.select_agents(["agent-1"])
-    assert "agent-1" in bindings
-
-    conversation = integration.create_conversation(agent_id="agent-1", title="Coffee chat")
-    assert conversation.active_topic_id == "topic-1"
-
-    conversation = integration.new_topic(conversation.id, "Buy coffee")
-    assert conversation.active_topic_id == "topic-2"
-
-    message = integration.send_message(conversation.id, "Order a latte")
-    assert message["data"]["id"] == "message-1"
-
-    task = integration.run_task(
-        "agent-1",
-        "Buy coffee at the nearest Luckin",
-        context={"location": "near office"},
+    integration.configure_agent(
+        AgentBinding(agent_id="agent-1", topic_policy="reuse", title="Coffee")
     )
-    assert task.response_id == "resp-1"
-    assert task.output_text == "done"
-    assert task.status == "completed"
+    integration.switch_topic("topic-1")
 
-    assert len(calls) == 6
-    assert calls[0][1].endswith("/api/v1/users/me")
-    assert calls[2][1].endswith("/api/v1/topics")
-    assert calls[5][1].endswith("/api/v1/responses")
+    conversation, result = integration.send_message("Make coffee")
+
+    assert conversation.id == "topic-1"
+    assert result["final_output_text"] == "Ready"
+    assert client.responses == [
+        {
+            "agent_id": "agent-1",
+            "instruction": "Make coffee",
+            "topic_id": "topic-1",
+            "context": None,
+            "device_id": None,
+            "workspace_id": None,
+        }
+    ]
 
 
-def test_run_task_respects_agent_task_toggle():
-    transport, _ = make_transport([(200, {}, b'{"id":"user-1"}')])
-    client = LobeHubClient(
-        IntegrationConfig(api_key="sk-lh-1234567890abcd", base_url="https://lobehub.example"),
-        transport=transport,
-    )
+def test_new_topic_policy_does_not_reuse_the_active_topic() -> None:
+    client = FakeClient()
     integration = LobeHubIntegration(
-        client,
-        IntegrationConfig(api_key="sk-lh-1234567890abcd", base_url="https://lobehub.example"),
+        client,  # type: ignore[arg-type]
+        IntegrationConfig(api_key="test-key", base_url="https://lobehub.example"),
     )
-    integration._agent_bindings["agent-1"] = AgentBinding(agent_id="agent-1", allow_task=False)
+    integration.configure_agent(AgentBinding(agent_id="agent-1", topic_policy="new"))
+    integration.switch_topic("topic-1")
 
-    with pytest.raises(Exception) as exc:
-        integration.run_task("agent-1", "Buy coffee")
-    assert "disabled" in str(exc.value)
+    integration.send_message("Start fresh")
+
+    assert client.responses[0]["topic_id"] is None

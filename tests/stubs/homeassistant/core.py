@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, Optional
+from enum import Enum
+from typing import Any, Awaitable, Callable, Dict
 
 
 @dataclass
@@ -12,6 +13,12 @@ class ServiceCall:
     """Simple service call container."""
 
     data: Dict[str, Any]
+
+
+class SupportsResponse(Enum):
+    """Response support marker accepted by service registration."""
+
+    ONLY = "only"
 
 
 class ServiceRegistry:
@@ -34,11 +41,24 @@ class ServiceRegistry:
 class ConfigEntriesManager:
     """Stub config entries manager."""
 
+    def __init__(self) -> None:
+        self.entries = []
+
     async def async_forward_entry_setups(self, entry, platforms) -> bool:
         return True
 
     async def async_unload_platforms(self, entry, platforms) -> bool:
         return True
+
+    def async_update_entry(self, entry, **kwargs) -> None:
+        for key, value in kwargs.items():
+            setattr(entry, key, value)
+
+    def async_entries(self, domain=None):
+        return [entry for entry in self.entries if domain is None or entry.domain == domain]
+
+    async def async_add(self, entry) -> None:
+        self.entries.append(entry)
 
 
 class HomeAssistant:
@@ -51,6 +71,9 @@ class HomeAssistant:
 
     async def async_add_executor_job(self, func, *args):
         return func(*args)
+
+    def async_create_task(self, coro):
+        return asyncio.create_task(coro)
 
 
 def callback(func):

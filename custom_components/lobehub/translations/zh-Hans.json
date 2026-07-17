@@ -5,7 +5,9 @@
       "already_configured": "已配置"
     },
     "error": {
-      "auth": "无法验证 API 密钥"
+      "agent_list_forbidden": "API 密钥登录成功，但当前 LobeHub 服务器不允许该密钥列出 agents。",
+      "auth": "无法验证 API 密钥",
+      "cannot_connect": "已连接，但无法从 LobeHub 加载 agents"
     },
     "step": {
       "user": {
@@ -13,26 +15,23 @@
         "description": "将 Home Assistant 连接到你的 LobeHub 账户。",
         "data": {
           "base_url": "基础地址",
-          "api_key": "API 密钥",
-          "default_runtime": "默认运行环境"
+          "api_key": "API 密钥"
+        },
+        "data_description": {
+          "base_url": "LobeHub 服务器地址，必须包含 https://。",
+          "api_key": "在 LobeHub 中创建的 API 密钥。"
         }
       },
-      "select_agents": {
+      "select_agent": {
         "title": "选择代理",
-        "description": "选择一个或多个要在 Home Assistant 中暴露的代理。",
+        "description": "选择一个或多个 LobeHub 代理。Home Assistant 会为每个被选中的代理创建一个独立配置项。",
         "data": {
-          "selected_agents": "代理"
-        }
-      },
-      "agent_config": {
-        "title": "配置代理",
-        "description": "为所选代理设置单独覆盖项。",
-        "data": {
-          "agent_title": "代理标题",
-          "agent_model": "模型",
-          "agent_provider": "提供方",
-          "agent_runtime": "运行环境",
-          "agent_allow_task": "允许任务执行"
+          "agent_ids": "代理",
+          "topic_policy": "话题策略"
+        },
+        "data_description": {
+          "agent_ids": "Home Assistant 会为每个选中的代理创建一个独立配置项。",
+          "topic_policy": "复用当前 LobeHub 话题，或为每次新对话创建新话题。"
         }
       }
     }
@@ -40,66 +39,144 @@
   "options": {
     "step": {
       "init": {
-        "title": "配置代理",
-        "description": "调整暴露哪些代理以及它们的行为。",
+        "title": "代理设置",
+        "description": "为这个 LobeHub agent 配置话题复用、模型、Provider、执行目标和绑定设备。",
         "data": {
-          "selected_agents": "代理"
-        }
-      },
-      "agent_config": {
-        "title": "配置代理",
-        "data": {
-          "agent_title": "代理标题",
-          "agent_model": "模型",
-          "agent_provider": "提供方",
-          "agent_runtime": "运行环境",
-          "agent_allow_task": "允许任务执行"
+          "topic_policy": "话题策略",
+          "model": "模型",
+          "provider": "Provider",
+          "runtime": "执行目标",
+          "bound_device_id": "绑定设备 ID"
+        },
+        "data_description": {
+          "topic_policy": "复用当前 LobeHub 话题，或为每次新对话创建新话题。",
+          "model": "覆盖 LobeHub 中该代理使用的模型。",
+          "provider": "覆盖 LobeHub 中该代理使用的模型提供商。",
+          "runtime": "选择 LobeHub 运行代理的位置。",
+          "bound_device_id": "执行目标为设备时必填。"
         }
       }
     }
   },
   "services": {
+    "list_agents": {
+      "name": "列出代理",
+      "description": "列出当前可见的 LobeHub agents，并返回它们的 agent ID 供自动化使用。"
+    },
+    "list_devices": {
+      "name": "列出设备",
+      "description": "列出当前可见的 LobeHub 执行设备，并返回它们的 device ID 供自动化使用。"
+    },
+    "update_agent_settings": {
+      "name": "更新代理设置",
+      "description": "更新被选中 LobeHub agent 的模型、Provider、执行目标或绑定设备。",
+      "fields": {
+        "model": {
+          "name": "模型"
+        },
+        "provider": {
+          "name": "Provider"
+        },
+        "runtime": {
+          "name": "执行目标"
+        },
+        "bound_device_id": {
+          "name": "绑定设备 ID"
+        },
+        "topic_policy": {
+          "name": "话题策略"
+        }
+      }
+    },
     "send_message": {
       "name": "发送消息",
-      "description": "向所选代理的会话发送一条消息。",
+      "description": "向被选中的 LobeHub 对话实体发送一条消息。",
       "fields": {
-        "agent_id": "代理",
-        "message": "消息",
-        "client_id": "客户端 ID",
-        "context": "上下文"
+        "message": {
+          "name": "消息"
+        },
+        "context": {
+          "name": "上下文"
+        }
       }
     },
     "new_topic": {
       "name": "新建话题",
-      "description": "为所选代理创建一个新话题并设为当前活动话题。",
+      "description": "为被选中的 LobeHub 对话实体创建一个新话题并设为当前活动话题。",
       "fields": {
-        "agent_id": "代理",
-        "topic_title": "话题标题"
+        "topic_title": {
+          "name": "话题标题"
+        }
       }
     },
     "switch_topic": {
       "name": "切换话题",
-      "description": "将所选代理会话切换到已有话题。",
+      "description": "将被选中的 LobeHub 对话实体切换到已有话题。",
       "fields": {
-        "agent_id": "代理",
-        "topic_id": "话题 ID"
+        "topic_id": {
+          "name": "话题 ID"
+        }
       }
     },
     "run_task": {
       "name": "触发任务",
-      "description": "触发代理的任务执行接口，适合非对话类动作。",
+      "description": "通过 execAgent 直接触发被选中的 LobeHub agent，并返回生成的话题与消息 ID。",
       "fields": {
-        "agent_id": "代理",
-        "instruction": "指令",
-        "context": "上下文",
-        "model": "模型",
-        "provider": "提供方",
-        "runtime": "运行环境",
-        "previous_response_id": "上一次响应 ID",
-        "stream": "流式输出",
-        "tools": "工具"
+        "instruction": {
+          "name": "指令"
+        },
+        "context": {
+          "name": "上下文"
+        },
+        "previous_response_id": {
+          "name": "上一次响应 ID"
+        }
+      }
+    },
+    "list_tasks": {
+      "name": "列出任务",
+      "description": "列出当前目标账户可见的 LobeHub 已保存任务，同时返回原始 ID 和 TASK-1 这类 identifier。",
+      "fields": {
+        "assignee_agent_id": {
+          "name": "执行代理 ID"
+        },
+        "limit": {
+          "name": "数量上限"
+        },
+        "offset": {
+          "name": "偏移量"
+        },
+        "parent_task": {
+          "name": "父任务"
+        },
+        "statuses": {
+          "name": "状态列表"
+        }
+      }
+    },
+    "get_task": {
+      "name": "获取任务",
+      "description": "通过原始 ID 或 identifier 获取一个 LobeHub 已保存任务，并返回它关联的话题。",
+      "fields": {
+        "task": {
+          "name": "任务"
+        }
+      }
+    },
+    "run_saved_task": {
+      "name": "运行已保存任务",
+      "description": "通过原始 ID 或 identifier（例如 TASK-1）运行一个已保存的 LobeHub 任务。",
+      "fields": {
+        "task": {
+          "name": "任务"
+        },
+        "continue_topic_id": {
+          "name": "继续话题 ID"
+        },
+        "prompt": {
+          "name": "附加提示词"
+        }
       }
     }
   }
 }
-
