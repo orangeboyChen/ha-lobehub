@@ -286,7 +286,45 @@ def test_migrate_legacy_selected_agents_rejects_empty_bindings() -> None:
     hass.config_entries.entries.append(entry)
 
     assert asyncio.run(async_migrate_entry(hass, entry)) is False
-    assert entry.version == 1
+
+
+def test_migrate_v1_singular_binding_preserves_its_conversation() -> None:
+    entry = ConfigEntry(
+        entry_id="v1-entry",
+        title="Coffee",
+        domain=DOMAIN,
+        version=1,
+        data={
+            CONF_BASE_URL: "https://lobehub.example",
+            CONF_API_KEY: "test-key",
+            CONF_SELECTED_AGENT: {"agent_id": "agent-1", "title": "Coffee"},
+        },
+        options={
+            CONF_SELECTED_AGENT: {"agent_id": "agent-1", "title": "Coffee"},
+            "conversation": {
+                "id": "topic-1",
+                "agent_id": "agent-1",
+                "title": "Morning",
+            },
+        },
+    )
+    hass = HomeAssistant()
+    hass.config_entries.entries.append(entry)
+
+    assert asyncio.run(async_migrate_entry(hass, entry)) is True
+    assert entry.version == 2
+    assert entry.unique_id == "https://lobehub.example::agent-1"
+    assert entry.options[CONF_SELECTED_AGENT]["agent_id"] == "agent-1"
+    assert entry.options["conversation"] == {
+        "id": "topic-1",
+        "agent_id": "agent-1",
+        "title": "Morning",
+        "model": None,
+        "provider": None,
+        "runtime": "auto",
+        "topic_policy": "reuse",
+        "workspace_id": None,
+    }
 
 
 def test_migrate_legacy_selected_agents_rejects_invalid_binding_container() -> None:

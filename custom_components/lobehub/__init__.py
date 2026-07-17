@@ -61,17 +61,22 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.version >= _CONFIG_ENTRY_VERSION:
         return True
 
-    raw_bindings = (
-        entry.options.get(_LEGACY_SELECTED_AGENTS)
-        or entry.data.get(_LEGACY_SELECTED_AGENTS)
-        or []
+    raw_bindings = entry.options.get(_LEGACY_SELECTED_AGENTS) or entry.data.get(
+        _LEGACY_SELECTED_AGENTS
     )
-    if not isinstance(raw_bindings, list):
-        return False
+    if isinstance(raw_bindings, list):
+        binding_items = raw_bindings
+    else:
+        # Version 1 already stored one binding under the current singular key.
+        # Treat it as a one-item legacy collection rather than rejecting it.
+        raw_binding = entry.options.get(CONF_SELECTED_AGENT) or entry.data.get(
+            CONF_SELECTED_AGENT
+        )
+        binding_items = [raw_binding] if isinstance(raw_binding, dict) else []
 
     bindings: list[AgentBinding] = []
     seen_agent_ids: set[str] = set()
-    for raw_binding in raw_bindings:
+    for raw_binding in binding_items:
         if not isinstance(raw_binding, dict):
             continue
         binding = binding_from_data(raw_binding)
@@ -83,16 +88,22 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Cannot migrate LobeHub entry %s: no agent bindings", entry.entry_id)
         return False
 
-    raw_conversations = (
-        entry.options.get(_LEGACY_CONVERSATIONS)
-        or entry.data.get(_LEGACY_CONVERSATIONS)
-        or []
+    raw_conversations = entry.options.get(_LEGACY_CONVERSATIONS) or entry.data.get(
+        _LEGACY_CONVERSATIONS
     )
     conversations: dict[str, ConversationState] = {}
     if isinstance(raw_conversations, list):
         for raw_conversation in raw_conversations:
             if not isinstance(raw_conversation, dict):
                 continue
+            conversation = conversation_from_data(raw_conversation)
+            if conversation.agent_id and conversation.id:
+                conversations[conversation.agent_id] = conversation
+    else:
+        raw_conversation = entry.options.get(CONF_CONVERSATION) or entry.data.get(
+            CONF_CONVERSATION
+        )
+        if isinstance(raw_conversation, dict):
             conversation = conversation_from_data(raw_conversation)
             if conversation.agent_id and conversation.id:
                 conversations[conversation.agent_id] = conversation
