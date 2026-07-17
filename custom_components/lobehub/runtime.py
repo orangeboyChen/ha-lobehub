@@ -127,7 +127,17 @@ class LobeHubRuntime:
         )
 
     def list_agents(self) -> list[dict[str, Any]]:
-        """List visible agents for the configured account."""
+        """List visible agents, including the configured default agent."""
+
+        try:
+            bindings = self.integration.discover_agents()
+        except ApiError:
+            if self.agent_binding is None:
+                raise
+            bindings = {}
+
+        if self.agent_binding is not None:
+            bindings.setdefault(self.agent_binding.agent_id, self.agent_binding)
 
         return [
             {
@@ -140,7 +150,7 @@ class LobeHubRuntime:
                 "bound_device_id": binding.bound_device_id,
                 "workspace_id": binding.workspace_id,
             }
-            for binding in self.integration.discover_agents().values()
+            for binding in bindings.values()
         ]
 
     def list_devices(self) -> list[dict[str, Any]]:

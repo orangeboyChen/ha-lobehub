@@ -23,6 +23,21 @@ from custom_components.lobehub.entry_state import (
 from custom_components.lobehub.models import AgentBinding, ConversationState
 from custom_components.lobehub.models import AgentSummary
 from custom_components.lobehub.runtime import LobeHubRuntime
+import pytest
+import voluptuous as vol
+
+from custom_components.lobehub.services import (
+    GET_TASK_SCHEMA,
+    LIST_AGENTS_SCHEMA,
+    LIST_DEVICES_SCHEMA,
+    LIST_TASKS_SCHEMA,
+    NEW_TOPIC_SCHEMA,
+    RUN_SAVED_TASK_SCHEMA,
+    RUN_TASK_SCHEMA,
+    SEND_MESSAGE_SCHEMA,
+    SWITCH_TOPIC_SCHEMA,
+    UPDATE_AGENT_SETTINGS_SCHEMA,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -80,6 +95,9 @@ class FakeIntegration:
         assert self._conversation is not None
         self.sent.append((message, conversation_id, context))
         return self._conversation, {"final_output_text": "Done"}
+
+    def discover_agents(self) -> dict[str, AgentBinding]:
+        return {}
 
 
 def test_runtime_persists_one_agent_and_active_topic() -> None:
@@ -146,6 +164,51 @@ def test_runtime_switch_topic_replaces_active_conversation() -> None:
 
     assert switched.id == "topic-existing"
     assert runtime.conversation is switched
+
+
+def test_list_agents_includes_configured_default_agent() -> None:
+    integration = FakeIntegration()
+    runtime = LobeHubRuntime(integration)  # type: ignore[arg-type]
+    runtime.configure(AgentBinding(agent_id="agent-default", title="Default"))
+
+    assert runtime.list_agents() == [
+        {
+            "id": "agent-default",
+            "agent_id": "agent-default",
+            "title": "Default",
+            "model": None,
+            "provider": None,
+            "runtime": "auto",
+            "bound_device_id": None,
+            "workspace_id": None,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("schema", "data"),
+    [
+        (SEND_MESSAGE_SCHEMA, {"message": "Hello"}),
+        (NEW_TOPIC_SCHEMA, {"topic_title": "New topic"}),
+        (SWITCH_TOPIC_SCHEMA, {"topic_id": "topic-1"}),
+        (RUN_TASK_SCHEMA, {"instruction": "Summarize this"}),
+        (LIST_TASKS_SCHEMA, {}),
+        (GET_TASK_SCHEMA, {"task": "TASK-1"}),
+        (RUN_SAVED_TASK_SCHEMA, {"task": "TASK-1"}),
+        (LIST_AGENTS_SCHEMA, {}),
+        (LIST_DEVICES_SCHEMA, {}),
+        (UPDATE_AGENT_SETTINGS_SCHEMA, {"runtime": "auto"}),
+    ],
+)
+def test_all_service_schemas_accept_home_assistant_entity_targets(schema, data) -> None:
+    assert schema({**data, "entity_id": "conversation.lobehub_default"})[
+        "entity_id"
+    ] == "conversation.lobehub_default"
+
+
+def test_service_schemas_reject_unknown_fields() -> None:
+    with pytest.raises(vol.Invalid):
+        LIST_AGENTS_SCHEMA({"unknown_field": "value"})
 
 
 def test_config_flow_creates_one_entry_per_selected_agent(monkeypatch) -> None:

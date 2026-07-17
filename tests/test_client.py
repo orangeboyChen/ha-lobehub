@@ -58,6 +58,48 @@ def test_list_agents_parses_agent_items():
     assert agents[0].model == "gpt-4o-mini"
 
 
+def test_list_devices_derives_online_status_from_legacy_channels():
+    transport, _ = make_transport(
+        [
+            (
+                200,
+                {},
+                b'{"result":{"data":{"json":[{"deviceId":"device-online","hostname":"MacBook","channels":[{"channel":"gateway"}]},{"deviceId":"device-offline","friendlyName":"Desktop","channels":[]},{"deviceId":"explicit-offline","friendlyName":"Stopped device","online":false,"channels":[{"channel":"stale"}]}]}}}',
+            )
+        ]
+    )
+    client = LobeHubClient(
+        IntegrationConfig(api_key="sk-lh-1234567890abcd", base_url="https://lobehub.example"),
+        transport=transport,
+    )
+
+    devices = client.list_devices()
+
+    assert devices == [
+        {
+            "device_id": "device-online",
+            "label": "MacBook",
+            "online": True,
+            "scope": None,
+            "platform": None,
+        },
+        {
+            "device_id": "device-offline",
+            "label": "Desktop",
+            "online": False,
+            "scope": None,
+            "platform": None,
+        },
+        {
+            "device_id": "explicit-offline",
+            "label": "Stopped device",
+            "online": False,
+            "scope": None,
+            "platform": None,
+        },
+    ]
+
+
 def test_create_topic_and_message_reply():
     transport, calls = make_transport(
         [
