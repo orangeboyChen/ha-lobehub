@@ -66,12 +66,22 @@ _TASK_STATUSES = (
 )
 
 
+_TARGET_SELECTOR_SCHEMA = {
+    # Home Assistant injects target selectors into ServiceCall.data before
+    # validating the service schema. Keep these explicit so misspelled service
+    # fields are still rejected instead of being silently ignored.
+    vol.Optional("entity_id"): vol.Any(str, [str]),
+    vol.Optional("device_id"): vol.Any(str, [str]),
+    vol.Optional("area_id"): vol.Any(str, [str]),
+    vol.Optional("floor_id"): vol.Any(str, [str]),
+    vol.Optional("label_id"): vol.Any(str, [str]),
+}
+
+
 def _service_schema(fields: dict[object, object]) -> vol.Schema:
     """Allow Home Assistant target selectors alongside service fields."""
 
-    # Home Assistant injects entity_id, device_id, area_id, and related target
-    # selectors into ServiceCall.data before validating the service schema.
-    return vol.Schema(fields, extra=vol.ALLOW_EXTRA)
+    return vol.Schema({**fields, **_TARGET_SELECTOR_SCHEMA})
 
 
 SEND_MESSAGE_SCHEMA = _service_schema(
