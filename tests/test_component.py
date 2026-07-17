@@ -37,9 +37,10 @@ from custom_components.lobehub.services import (
     SEND_MESSAGE_SCHEMA,
     SWITCH_TOPIC_SCHEMA,
     UPDATE_AGENT_SETTINGS_SCHEMA,
+    _resolve_target_entries,
 )
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.core import HomeAssistant, ServiceCall
 
 
 class FakeIntegration:
@@ -209,6 +210,17 @@ def test_all_service_schemas_accept_home_assistant_entity_targets(schema, data) 
 def test_service_schemas_reject_unknown_fields() -> None:
     with pytest.raises(vol.Invalid):
         LIST_AGENTS_SCHEMA({"unknown_field": "value"})
+
+
+def test_resolve_target_entries_handles_one_loaded_entry_without_a_target() -> None:
+    entry = SimpleNamespace(entry_id="entry-1", state=ConfigEntryState.LOADED)
+    hass = SimpleNamespace(
+        config_entries=SimpleNamespace(
+            async_loaded_entries=lambda domain: [entry] if domain == DOMAIN else []
+        )
+    )
+
+    assert _resolve_target_entries(hass, ServiceCall(data={})) == [("entry-1", entry)]
 
 
 def test_config_flow_creates_one_entry_per_selected_agent(monkeypatch) -> None:
