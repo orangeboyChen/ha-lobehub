@@ -1,0 +1,23 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 5%
+    patch:
+      default:
+        target: 90%
+        threshold: 5%
+
+comment:
+  layout: 'condensed_header, diff, flags, components'
+  show_critical_paths: true
+
+# Runtime integration code remains in the denominator. These paths only hold
+# tests, CI metadata, or locally generated coverage artifacts.
+ignore:
+  - 'tests/**'
+  - '.github/**'
+  - '.pytest_cache/**'
+  - 'coverage.xml'
+  - 'htmlcov/**'

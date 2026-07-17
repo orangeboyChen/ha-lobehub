@@ -20,6 +20,7 @@ from .const import (
     CONF_API_KEY,
     CONF_BASE_URL,
     CONF_BOUND_DEVICE_ID,
+    CONF_CONNECTION,
     CONF_CONVERSATION,
     CONF_DEFAULT_RUNTIME,
     CONF_MODEL,
@@ -34,6 +35,7 @@ from .const import (
     TOPIC_POLICY_REUSE,
 )
 from .exceptions import ApiError
+from .exceptions import ValidationError
 from .models import (
     AgentBinding,
     AgentSummary,
@@ -52,6 +54,7 @@ USER_STEP_SCHEMA = vol.Schema(
         vol.Required(CONF_API_KEY): str,
     }
 )
+_NEW_CONNECTION = "new_connection"
 
 
 def _single_select(options: list[selector.SelectOptionDict]) -> selector.SelectSelector:
@@ -142,7 +145,7 @@ def _remote_options_for_binding(
 class LobeHubConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for first-time setup."""
 
-    VERSION = 1
+    VERSION = 2
 
     @staticmethod
     @callback
@@ -161,14 +164,93 @@ class LobeHubConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Validate credentials before the agent selection step."""
 
+        existing_entries = self.hass.config_entries.async_entries(DOMAIN)
         if user_input is None:
+            if existing_entries:
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=vol.Schema(
+                        {
+                            vol.Required(CONF_CONNECTION): _single_select(
+                                [
+                                    selector.SelectOptionDict(
+                                        value=entry.entry_id,
+                                        label=f"{entry.title} ({entry.data[CONF_BASE_URL]})",
+                                    )
+                                    for entry in existing_entries
+                                ]
+                                + [
+                                    selector.SelectOptionDict(
+                                        value=_NEW_CONNECTION,
+                                        label="Add a new LobeHub connection",
+                                    )
+                                ]
+                            )
+                        }
+                    ),
+                )
             return self.async_show_form(step_id="user", data_schema=USER_STEP_SCHEMA)
 
-        config = IntegrationConfig(
-            api_key=user_input[CONF_API_KEY],
-            base_url=user_input[CONF_BASE_URL],
-            default_runtime=DEFAULT_RUNTIME,
-        )
+        if CONF_CONNECTION in user_input:
+            selected_entry_id = user_input[CONF_CONNECTION]
+            if selected_entry_id == _NEW_CONNECTION:
+                return self.async_show_form(step_id="connection", data_schema=USER_STEP_SCHEMA)
+            source_entry = next(
+                (entry for entry in existing_entries if entry.entry_id == selected_entry_id),
+                None,
+            )
+            if source_entry is None:
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=vol.Schema({}),
+                    errors={CONF_CONNECTION: "required"},
+                )
+            return await self._async_load_agents(
+                IntegrationConfig(
+                    api_key=source_entry.data[CONF_API_KEY],
+                    base_url=source_entry.data[CONF_BASE_URL],
+                    default_runtime=source_entry.data.get(
+                        CONF_DEFAULT_RUNTIME, DEFAULT_RUNTIME
+                    ),
+                ),
+                step_id="user",
+            )
+
+        return await self._async_start_connection(user_input, step_id="user")
+
+    async def async_step_connection(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure a new connection after choosing that option."""
+
+        if user_input is None:
+            return self.async_show_form(step_id="connection", data_schema=USER_STEP_SCHEMA)
+        return await self._async_start_connection(user_input, step_id="connection")
+
+    async def _async_start_connection(
+        self, user_input: dict[str, Any], *, step_id: str
+    ) -> ConfigFlowResult:
+        """Validate new connection credentials and load its agents."""
+
+        try:
+            config = IntegrationConfig(
+                api_key=user_input[CONF_API_KEY],
+                base_url=user_input[CONF_BASE_URL],
+                default_runtime=DEFAULT_RUNTIME,
+            )
+        except ValidationError:
+            return self.async_show_form(
+                step_id=step_id,
+                data_schema=USER_STEP_SCHEMA,
+                errors={CONF_BASE_URL: "invalid_base_url"},
+            )
+        return await self._async_load_agents(config, step_id=step_id)
+
+    async def _async_load_agents(
+        self, config: IntegrationConfig, *, step_id: str
+    ) -> ConfigFlowResult:
+        """Load agents using validated new or stored connection credentials."""
+
         client = LobeHubClient(config)
 
         try:
@@ -183,7 +265,7 @@ class LobeHubConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 err.payload,
             )
             return self.async_show_form(
-                step_id="user",
+                step_id=step_id,
                 data_schema=USER_STEP_SCHEMA,
                 errors={"base": _agent_list_error_key(err)},
             )
@@ -193,7 +275,7 @@ class LobeHubConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 config.base_url,
             )
             return self.async_show_form(
-                step_id="user",
+                step_id=step_id,
                 data_schema=USER_STEP_SCHEMA,
                 errors={"base": "cannot_connect"},
             )
@@ -317,7 +399,7 @@ class LobeHubConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         options=[
                             selector.SelectOptionDict(
                                 value=agent_id,
-                                label=summary.title or agent_id,
+                                label=f"{summary.title or agent_id} ({agent_id})",
                             )
                             for agent_id, summary in sorted(
                                 self._discovered_agents.items(),

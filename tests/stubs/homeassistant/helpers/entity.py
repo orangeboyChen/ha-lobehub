@@ -33,6 +33,8 @@ class Entity:
     async def async_added_to_hass(self) -> None:
         return None
 
-    async def async_write_ha_state(self) -> None:
+    async def async_will_remove_from_hass(self) -> None:
         return None
 
+    def async_write_ha_state(self) -> None:
+        return None
