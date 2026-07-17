@@ -1,5 +1,7 @@
 # LobeHub Home Assistant Integration
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Home Assistant custom integration for LobeHub. Every configured LobeHub agent
 is exposed as an independent Home Assistant conversation entity.
 
