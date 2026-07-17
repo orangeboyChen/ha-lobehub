@@ -36,7 +36,12 @@ def test_list_agents_parses_agent_items():
             (
                 200,
                 {},
-                b'{"agents":[{"id":"agent-1","title":"Coffee","model":"gpt-4o-mini","provider":"openai"}],"total":1}',
+                b'{"result":{"data":{"json":[]}}}',
+            ),
+            (
+                200,
+                {},
+                b'{"result":{"data":{"json":[{"id":"agent-1","title":"Coffee","model":"gpt-4o-mini","provider":"openai"}]}}}',
             )
         ]
     )
@@ -56,8 +61,8 @@ def test_list_agents_parses_agent_items():
 def test_create_topic_and_message_reply():
     transport, calls = make_transport(
         [
-            (200, {}, b'{"data":{"id":"topic-1","title":"Morning run","agentId":"agent-1"}}'),
-            (200, {}, b'{"data":{"id":"msg-1"}}'),
+            (200, {}, b'{"result":{"data":{"json":"topic-1"}}}'),
+            (200, {}, b'{"result":{"data":{"json":{"id":"msg-1"}}}}'),
         ]
     )
     client = LobeHubClient(
@@ -69,6 +74,7 @@ def test_create_topic_and_message_reply():
     reply = client.create_message_reply(content="Hello", topic_id=topic.id, model="gpt-4o-mini")
 
     assert topic.id == "topic-1"
-    assert reply["data"]["id"] == "msg-1"
+    assert reply["id"] == "msg-1"
     assert calls[0][0] == "POST"
-    assert calls[1][1] == "https://lobehub.example/api/v1/messages/replies"
+    assert calls[0][1].endswith("/trpc/lambda/topic.createTopic")
+    assert calls[1][1].endswith("/trpc/lambda/message.createMessage")

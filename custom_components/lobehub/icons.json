@@ -1,0 +1,25 @@
+{
+  "services": {
+    "get_task": {
+      "service": "mdi:file-document-search"
+    },
+    "list_tasks": {
+      "service": "mdi:format-list-bulleted"
+    },
+    "new_topic": {
+      "service": "mdi:chat-plus"
+    },
+    "run_task": {
+      "service": "mdi:robot"
+    },
+    "run_saved_task": {
+      "service": "mdi:play-circle"
+    },
+    "send_message": {
+      "service": "mdi:message-arrow-right"
+    },
+    "switch_topic": {
+      "service": "mdi:swap-horizontal"
+    }
+  }
+}

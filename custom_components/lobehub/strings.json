@@ -1,105 +1,181 @@
 {
-  "title": "LobeHub",
   "config": {
     "abort": {
       "already_configured": "Already configured"
     },
     "error": {
-      "auth": "Unable to validate the API key"
+      "agent_list_forbidden": "API key login succeeded, but this LobeHub server does not allow listing agents for this key.",
+      "auth": "Unable to validate the API key",
+      "cannot_connect": "Connected, but unable to load agents from LobeHub"
     },
     "step": {
+      "select_agent": {
+        "data": {
+          "agent_ids": "Agents",
+          "topic_policy": "Topic policy"
+        },
+        "data_description": {
+          "agent_ids": "Home Assistant creates one configuration entry for each selected agent.",
+          "topic_policy": "Reuse the active LobeHub topic or create a new topic for every new conversation."
+        },
+        "description": "Select one or more LobeHub agents. Home Assistant will create one config entry per selected agent.",
+        "title": "Choose agents"
+      },
       "user": {
-        "title": "Set up LobeHub",
-        "description": "Connect Home Assistant to your LobeHub account.",
         "data": {
-          "base_url": "Base URL",
           "api_key": "API key",
-          "default_runtime": "Default runtime"
-        }
-      },
-      "select_agents": {
-        "title": "Select agents",
-        "description": "Choose one or more agents to expose in Home Assistant.",
-        "data": {
-          "selected_agents": "Agents"
-        }
-      },
-      "agent_config": {
-        "title": "Configure agent",
-        "description": "Set per-agent overrides for the selected agent.",
-        "data": {
-          "agent_title": "Agent title",
-          "agent_model": "Model",
-          "agent_provider": "Provider",
-          "agent_runtime": "Runtime",
-          "agent_allow_task": "Allow task execution"
-        }
+          "base_url": "Base URL"
+        },
+        "data_description": {
+          "api_key": "An API key created in LobeHub.",
+          "base_url": "The URL of your LobeHub server, including https://."
+        },
+        "description": "Connect Home Assistant to your LobeHub account.",
+        "title": "Set up LobeHub"
       }
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Configure agents",
-        "description": "Adjust which agents are exposed and how they behave.",
         "data": {
-          "selected_agents": "Agents"
-        }
-      },
-      "agent_config": {
-        "title": "Configure agent",
-        "data": {
-          "agent_title": "Agent title",
-          "agent_model": "Model",
-          "agent_provider": "Provider",
-          "agent_runtime": "Runtime",
-          "agent_allow_task": "Allow task execution"
-        }
+          "bound_device_id": "Bound device ID",
+          "model": "Model",
+          "provider": "Provider",
+          "runtime": "Execution target",
+          "topic_policy": "Topic policy"
+        },
+        "data_description": {
+          "bound_device_id": "Required when the execution target is device.",
+          "model": "Overrides the agent's model in LobeHub.",
+          "provider": "Overrides the model provider in LobeHub.",
+          "runtime": "Choose where LobeHub runs the agent.",
+          "topic_policy": "Reuse the active LobeHub topic or create a new topic for every new conversation."
+        },
+        "description": "Configure topic reuse, model, provider, execution target and bound device for this LobeHub agent.",
+        "title": "Agent settings"
       }
     }
   },
   "services": {
-    "send_message": {
-      "name": "Send message",
-      "description": "Send a message into the selected agent conversation.",
+    "get_task": {
+      "description": "Fetch one saved LobeHub task by raw ID or identifier and return its linked topics.",
       "fields": {
-        "agent_id": "Agent",
-        "message": "Message",
-        "client_id": "Client ID",
-        "context": "Context"
-      }
+        "task": {
+          "name": "Task"
+        }
+      },
+      "name": "Get task"
+    },
+    "list_agents": {
+      "description": "List visible LobeHub agents and return their agent IDs for use in automations.",
+      "name": "List agents"
+    },
+    "list_devices": {
+      "description": "List visible LobeHub execution devices and return their device IDs for use in automations.",
+      "name": "List devices"
+    },
+    "list_tasks": {
+      "description": "List saved LobeHub tasks visible to the targeted account, including both raw IDs and identifiers like TASK-1.",
+      "fields": {
+        "assignee_agent_id": {
+          "name": "Assignee agent ID"
+        },
+        "limit": {
+          "name": "Limit"
+        },
+        "offset": {
+          "name": "Offset"
+        },
+        "parent_task": {
+          "name": "Parent task"
+        },
+        "statuses": {
+          "name": "Statuses"
+        }
+      },
+      "name": "List tasks"
     },
     "new_topic": {
-      "name": "New topic",
-      "description": "Create a new topic for the selected agent and make it active.",
+      "description": "Create a new topic for the targeted LobeHub conversation entity and make it active.",
       "fields": {
-        "agent_id": "Agent",
-        "topic_title": "Topic title"
-      }
+        "topic_title": {
+          "name": "Topic title"
+        }
+      },
+      "name": "New topic"
     },
-    "switch_topic": {
-      "name": "Switch topic",
-      "description": "Switch the selected agent conversation to an existing topic.",
+    "run_saved_task": {
+      "description": "Run one saved LobeHub task by raw ID or identifier such as TASK-1.",
       "fields": {
-        "agent_id": "Agent",
-        "topic_id": "Topic ID"
-      }
+        "continue_topic_id": {
+          "name": "Continue topic ID"
+        },
+        "prompt": {
+          "name": "Prompt"
+        },
+        "task": {
+          "name": "Task"
+        }
+      },
+      "name": "Run saved task"
     },
     "run_task": {
-      "name": "Run task",
-      "description": "Trigger the agent task endpoint for a non-topic action.",
+      "description": "Trigger the targeted LobeHub agent directly through execAgent and return the resulting topic and message IDs.",
       "fields": {
-        "agent_id": "Agent",
-        "instruction": "Instruction",
-        "context": "Context",
-        "model": "Model",
-        "provider": "Provider",
-        "runtime": "Runtime",
-        "previous_response_id": "Previous response ID",
-        "stream": "Stream",
-        "tools": "Tools"
-      }
+        "context": {
+          "name": "Context"
+        },
+        "instruction": {
+          "name": "Instruction"
+        },
+        "previous_response_id": {
+          "name": "Previous response ID"
+        }
+      },
+      "name": "Run task"
+    },
+    "send_message": {
+      "description": "Send a message to the targeted LobeHub conversation entity.",
+      "fields": {
+        "context": {
+          "name": "Context"
+        },
+        "message": {
+          "name": "Message"
+        }
+      },
+      "name": "Send message"
+    },
+    "switch_topic": {
+      "description": "Switch the targeted LobeHub conversation entity to an existing topic.",
+      "fields": {
+        "topic_id": {
+          "name": "Topic ID"
+        }
+      },
+      "name": "Switch topic"
+    },
+    "update_agent_settings": {
+      "description": "Update the targeted LobeHub agent model, provider, execution target, or bound device.",
+      "fields": {
+        "bound_device_id": {
+          "name": "Bound device ID"
+        },
+        "model": {
+          "name": "Model"
+        },
+        "provider": {
+          "name": "Provider"
+        },
+        "runtime": {
+          "name": "Execution target"
+        },
+        "topic_policy": {
+          "name": "Topic policy"
+        }
+      },
+      "name": "Update agent settings"
     }
   }
 }
-

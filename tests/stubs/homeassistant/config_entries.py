@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, Optional
+
+
+class ConfigEntryState(Enum):
+    """Subset of Home Assistant config entry lifecycle states."""
+
+    LOADED = "loaded"
+
+
+ConfigFlowResult = Dict[str, Any]
 
 
 @dataclass
@@ -14,6 +24,19 @@ class ConfigEntry:
     title: str = ""
     data: Dict[str, Any] = field(default_factory=dict)
     options: Dict[str, Any] = field(default_factory=dict)
+    domain: str = ""
+    unique_id: str | None = None
+    source: str = "user"
+    discovery_keys: Dict[str, Any] = field(default_factory=dict)
+    version: int = 1
+    minor_version: int = 1
+    subentries_data: tuple[Any, ...] = ()
+
+    def __class_getitem__(cls, item):
+        return cls
+
+    def async_on_unload(self, callback):
+        return callback
 
 
 class _FlowBase:
@@ -38,8 +61,16 @@ class _FlowBase:
 class ConfigFlow(_FlowBase):
     """Config flow stub."""
 
+    MINOR_VERSION = 1
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__()
+
+    async def async_set_unique_id(self, unique_id: str):
+        self.unique_id = unique_id
+
+    def _abort_if_unique_id_configured(self):
+        return None
 
 
 class OptionsFlow(_FlowBase):

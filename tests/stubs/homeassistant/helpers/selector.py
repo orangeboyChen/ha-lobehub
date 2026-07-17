@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List
+from enum import Enum
+from typing import Any, List
 
 import voluptuous as vol
 
@@ -14,6 +15,22 @@ class SelectSelectorConfig:
 
     options: List[Any]
     multiple: bool = False
+    mode: object | None = None
+    sort: bool = False
+    custom_value: bool = False
+
+
+class SelectSelectorMode(Enum):
+    """Selector display mode accepted by config-flow schemas."""
+
+    DROPDOWN = "dropdown"
+
+
+class SelectOptionDict(dict):
+    """Dict-shaped selector option."""
+
+    def __init__(self, *, value: str, label: str) -> None:
+        super().__init__(value=value, label=label)
 
 
 @dataclass

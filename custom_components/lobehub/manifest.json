@@ -1,13 +1,14 @@
 {
   "domain": "lobehub",
   "name": "LobeHub",
-  "codeowners": ["@orangeboychen"],
+  "codeowners": ["@orangeboyChen"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/orangeboychen/ha-lobehub",
+  "documentation": "https://github.com/orangeboyChen/ha-lobehub",
+  "issue_tracker": "https://github.com/orangeboyChen/ha-lobehub/issues",
   "integration_type": "service",
   "iot_class": "cloud_polling",
+  "quality_scale": "bronze",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
-
