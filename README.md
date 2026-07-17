@@ -5,11 +5,7 @@
 Home Assistant custom integration for LobeHub. Every configured LobeHub agent
 is exposed as an independent Home Assistant conversation entity.
 
-<div align="center">
-
-<img src="docs/lobehub-home-assistant-overview.png" alt="LobeHub Home Assistant Integration Overview" width="900" />
-
-</div>
+![][cover]
 
 ## Requirements
 
@@ -82,3 +78,5 @@ Install [uv](https://docs.astral.sh/uv/), then run `uv sync --group dev
 --locked`, `uv run python -m compileall -q custom_components tests`, `uv run
 ruff check custom_components tests`, and `uv run pytest`. See
 [RELEASE.md](RELEASE.md) for the versioning and release checklist.
+
+[cover]: docs/lobehub-home-assistant-overview.png
