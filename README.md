@@ -7,7 +7,7 @@ is exposed as an independent Home Assistant conversation entity.
 
 <div align="center">
 
-<img src="docs/lobehub-home-assistant-overview.svg" alt="LobeHub Home Assistant Integration Overview" width="900" />
+<img src="docs/lobehub-home-assistant-overview.png" alt="LobeHub Home Assistant Integration Overview" width="900" />
 
 </div>
 
