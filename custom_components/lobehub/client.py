@@ -612,13 +612,18 @@ class LobeHubClient:
         discovered: dict[str, AgentSummary] = {}
 
         # The personal inbox is a virtual agent, so ``queryAgents`` excludes
-        # it. Query it without a workspace header to use the API key owner's
-        # personal default agent, then include it with the ordinary agents.
-        default_agent = self._trpc_query(
-            "agent.getAgentConfig",
-            {"sessionId": "inbox"},
-            workspace_id=None,
-        )
+        # it. Fetch the builtin Lobe AI agent without a workspace header, then
+        # include it with ordinary agents. Do not use ``getAgentConfig`` with
+        # ``sessionId='inbox'`` here: that legacy endpoint provisions a
+        # session-backed inbox and can create a title-less ordinary agent.
+        try:
+            default_agent = self._trpc_query(
+                "agent.getBuiltinAgent",
+                {"slug": "inbox"},
+                workspace_id=None,
+            )
+        except ApiError:
+            default_agent = None
         if isinstance(default_agent, dict):
             agent = self._to_agent(default_agent)
             if agent.id:
@@ -632,6 +637,22 @@ class LobeHubClient:
         )
 
         for workspace_id in workspace_ids:
+            if workspace_id is not None:
+                try:
+                    workspace_agent = self._trpc_query(
+                        "agent.getBuiltinAgent",
+                        {"slug": "inbox"},
+                        workspace_id=workspace_id,
+                    )
+                except ApiError:
+                    workspace_agent = None
+                if isinstance(workspace_agent, dict):
+                    agent = self._to_agent(workspace_agent)
+                    if agent.id and agent.id not in discovered:
+                        agent.workspace_id = workspace_id
+                        agent.raw.setdefault("workspaceId", workspace_id)
+                        discovered[agent.id] = agent
+
             data = self._trpc_query(
                 "agent.queryAgents",
                 payload,
