@@ -69,6 +69,8 @@ def test_list_agents_parses_agent_items():
     ]
     assert agents[1].model == "gpt-4o-mini"
     assert "X-Workspace-Id" not in calls[0][2]
+    assert "agent.getBuiltinAgent" in calls[0][1]
+    assert "agent.getAgentConfig" not in calls[0][1]
 
 
 def test_list_devices_derives_online_status_from_legacy_channels():
@@ -202,6 +204,7 @@ def test_list_agents_includes_workspaces_and_preserves_workspace_ids() -> None:
             (200, {}, b'{"result":{"data":{"json":{"id":"inbox","slug":"inbox"}}}}'),
             (200, {}, b'{"result":{"data":{"json":[{"id":"workspace-1"}]}}}'),
             (200, {}, b'{"result":{"data":{"json":[{"id":"personal","title":"Personal"}]}}}'),
+            (200, {}, b'{"result":{"data":{"json":{"id":"workspace-inbox","slug":"inbox"}}}}'),
             (200, {}, b'{"result":{"data":{"json":[{"id":"team","title":"Team"}]}}}'),
         ]
     )
@@ -215,10 +218,11 @@ def test_list_agents_includes_workspaces_and_preserves_workspace_ids() -> None:
     assert [(agent.id, agent.title, agent.workspace_id) for agent in agents] == [
         ("inbox", "Lobe AI", None),
         ("personal", "Personal", None),
+        ("workspace-inbox", "Lobe AI", "workspace-1"),
         ("team", "Team", "workspace-1"),
     ]
     assert "offset%22%3A10" in calls[2][1]
-    assert calls[3][2]["X-Workspace-Id"] == "workspace-1"
+    assert calls[4][2]["X-Workspace-Id"] == "workspace-1"
 
 
 def test_get_agent_tries_workspace_scopes_before_personal() -> None:
@@ -517,7 +521,7 @@ def test_client_handles_invalid_upstream_collections_and_agent_not_found() -> No
     client._trpc_query = lambda procedure, *_args, **_kwargs: {
         "messenger.listBindingScopes": {"unexpected": True},
         "device.listDevices": {"unexpected": True},
-        "agent.getAgentConfig": "invalid-default",
+        "agent.getBuiltinAgent": "invalid-default",
         "agent.queryAgents": {"items": [None, {}, {"id": "agent-1", "slug": "one"}, {"id": "agent-1"}]},
         "agent.getAgentConfigById": None,
     }[procedure]  # type: ignore[method-assign]
@@ -528,6 +532,64 @@ def test_client_handles_invalid_upstream_collections_and_agent_not_found() -> No
     assert [(agent.id, agent.title) for agent in agents] == [("agent-1", "one")]
     with pytest.raises(ApiError, match="Agent not found: missing"):
         client.get_agent("missing")
+
+
+def test_list_agents_handles_workspace_builtin_variants() -> None:
+    client = LobeHubClient(IntegrationConfig(api_key="key", base_url="https://lobehub.example"))
+    responses = {
+        "messenger.listBindingScopes": [{"id": "workspace-1"}, {"id": "workspace-2"}],
+        "agent.getBuiltinAgent": [
+            {"id": "personal-inbox", "slug": "inbox"},
+            {"id": "personal-inbox", "slug": "inbox"},
+            {"id": "workspace-inbox", "slug": "inbox", "workspaceId": "workspace-2"},
+        ],
+        "agent.queryAgents": [],
+    }
+
+    def query(procedure, *_args, **_kwargs):
+        value = responses[procedure]
+        if procedure == "agent.getBuiltinAgent":
+            return value.pop(0)
+        return value
+
+    client._trpc_query = query  # type: ignore[method-assign]
+
+    agents = list(client.list_agents())
+
+    assert [(agent.id, agent.workspace_id) for agent in agents] == [
+        ("personal-inbox", None),
+        ("workspace-inbox", "workspace-2"),
+    ]
+
+
+def test_list_agents_degrades_when_builtin_lookup_is_unavailable() -> None:
+    client = LobeHubClient(IntegrationConfig(api_key="key", base_url="https://lobehub.example"))
+
+    def query(procedure, *_args, **_kwargs):
+        if procedure == "agent.getBuiltinAgent":
+            raise ApiError(status_code=404, message="not found", payload=None)
+        if procedure == "messenger.listBindingScopes":
+            return [{"id": "workspace-1"}]
+        return [{"id": "workspace-ordinary" if _kwargs.get("workspace_id") else "ordinary"}]
+
+    client._trpc_query = query  # type: ignore[method-assign]
+
+    assert [agent.id for agent in client.list_agents()] == ["ordinary", "workspace-ordinary"]
+
+
+def test_list_agents_ignores_non_object_workspace_builtin_response() -> None:
+    client = LobeHubClient(IntegrationConfig(api_key="key", base_url="https://lobehub.example"))
+
+    def query(procedure, *_args, **_kwargs):
+        if procedure == "messenger.listBindingScopes":
+            return [{"id": "workspace-1"}]
+        if procedure == "agent.getBuiltinAgent":
+            return None
+        return [{"id": "workspace-ordinary" if _kwargs.get("workspace_id") else "ordinary"}]
+
+    client._trpc_query = query  # type: ignore[method-assign]
+
+    assert [agent.id for agent in client.list_agents()] == ["ordinary", "workspace-ordinary"]
 
 
 def test_update_messages_and_task_helpers_tolerate_invalid_responses() -> None:
