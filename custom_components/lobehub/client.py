@@ -611,14 +611,19 @@ class LobeHubClient:
         }
         discovered: dict[str, AgentSummary] = {}
 
-        # LobeHub keeps its default LobeAI agent in the virtual ``inbox``
-        # session. ``queryAgents`` intentionally excludes virtual agents, so
-        # use the same endpoint LobeHub uses to load/create that default.
-        default_agent = self._trpc_query("agent.getAgentConfig", {"sessionId": "inbox"})
+        # The personal inbox is a virtual agent, so ``queryAgents`` excludes
+        # it. Query it without a workspace header to use the API key owner's
+        # personal default agent, then include it with the ordinary agents.
+        default_agent = self._trpc_query(
+            "agent.getAgentConfig",
+            {"sessionId": "inbox"},
+            workspace_id=None,
+        )
         if isinstance(default_agent, dict):
             agent = self._to_agent(default_agent)
             if agent.id:
                 discovered[agent.id] = agent
+
         workspace_ids = [None]
         workspace_ids.extend(
             _normalize_workspace_id(scope.get("id"))
@@ -1298,7 +1303,7 @@ class LobeHubClient:
             or ""
         )
         if item.get("slug") == "inbox" and raw_title in {"", "inbox"}:
-            raw_title = "LobeAI"
+            raw_title = "Lobe AI"
         provider = (
             item.get("provider")
             or meta.get("provider")
