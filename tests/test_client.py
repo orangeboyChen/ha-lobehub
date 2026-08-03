@@ -37,7 +37,7 @@ def test_validate_auth_uses_bearer_api_key():
 
 
 def test_list_agents_parses_agent_items():
-    transport, _ = make_transport(
+    transport, calls = make_transport(
         [
             (
                 200,
@@ -64,10 +64,11 @@ def test_list_agents_parses_agent_items():
     agents = list(client.list_agents())
 
     assert [(agent.id, agent.title) for agent in agents] == [
-        ("agent-inbox", "LobeAI"),
+        ("agent-inbox", "Lobe AI"),
         ("agent-1", "Coffee"),
     ]
     assert agents[1].model == "gpt-4o-mini"
+    assert "X-Workspace-Id" not in calls[0][2]
 
 
 def test_list_devices_derives_online_status_from_legacy_channels():
@@ -212,7 +213,7 @@ def test_list_agents_includes_workspaces_and_preserves_workspace_ids() -> None:
     agents = list(client.list_agents(page=2, page_size=10))
 
     assert [(agent.id, agent.title, agent.workspace_id) for agent in agents] == [
-        ("inbox", "LobeAI", None),
+        ("inbox", "Lobe AI", None),
         ("personal", "Personal", None),
         ("team", "Team", "workspace-1"),
     ]
