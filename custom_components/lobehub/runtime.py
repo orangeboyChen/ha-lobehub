@@ -7,7 +7,7 @@ from dataclasses import replace
 from typing import Any
 
 from .client import LobeHubClient
-from .exceptions import ApiError
+from .exceptions import ApiError, ValidationError
 from .integration import LobeHubIntegration
 from .models import (
     AgentBinding,
@@ -189,6 +189,16 @@ class LobeHubRuntime:
 
         return self.integration.get_task(task)
 
+    def get_task_detail(self, task: str) -> dict[str, Any]:
+        """Fetch one saved LobeHub task without loading its topic history."""
+
+        binding = self.integration.agent_binding
+        if binding is None:
+            raise ValidationError("No LobeHub agent is configured")
+        return self.integration.client.get_task_detail(
+            task, workspace_id=binding.workspace_id
+        )
+
     def run_saved_task(
         self,
         task: str,
@@ -198,11 +208,7 @@ class LobeHubRuntime:
     ) -> Any:
         """Run one saved LobeHub task without changing the active conversation."""
 
-        return self.integration.run_saved_task(
-            task,
-            continue_topic_id=continue_topic_id,
-            prompt=prompt,
-        )
+        return self.integration.run_saved_task(task)
 
     def snapshot(self) -> dict[str, Any]:
         """Return the current state snapshot for the conversation entity."""

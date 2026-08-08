@@ -132,25 +132,11 @@ get_task:
         text:
 
 run_saved_task:
-  description: Run one saved LobeHub task by raw id or identifier such as TASK-1.
-  target:
-    entity:
-      domain: conversation
-      integration: lobehub
+  description: Run one saved LobeHub task by task ID.
   fields:
-    task:
+    task_id:
       required: true
-      example: "TASK-1 or task_xxx"
-      selector:
-        text:
-    continue_topic_id:
-      required: false
-      example: "topic_xxx"
-      selector:
-        text:
-    prompt:
-      required: false
-      example: "Continue and summarize the blockers first"
+      example: "task_xxx"
       selector:
         text:
 

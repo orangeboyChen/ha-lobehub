@@ -174,16 +174,10 @@
     },
     "run_saved_task": {
       "name": "运行已保存任务",
-      "description": "通过原始 ID 或 identifier（例如 TASK-1）运行一个已保存的 LobeHub 任务。",
+      "description": "通过任务 ID 执行一个已保存的 LobeHub 任务。",
       "fields": {
-        "task": {
-          "name": "任务"
-        },
-        "continue_topic_id": {
-          "name": "继续话题 ID"
-        },
-        "prompt": {
-          "name": "附加提示词"
+        "task_id": {
+          "name": "任务 ID"
         }
       }
     }
