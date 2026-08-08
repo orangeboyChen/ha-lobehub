@@ -428,12 +428,10 @@ def test_saved_task_listing_detail_and_execution_paths() -> None:
     detail = integration.get_task("task-1")
     assert detail["task"]["name"] == "Coffee task"
     assert detail["topics"][0]["topic_id"] == "topic-1"
-    result = integration.run_saved_task("task-1", continue_topic_id="topic-1", prompt="Go")
+    result = integration.run_saved_task("task-1")
     assert result.task_identifier == "COFFEE-1"
     assert result.output_text == "Ready"
 
-    with pytest.raises(ValidationError, match="does not belong"):
-        integration.run_saved_task("task-1", continue_topic_id="other-topic")
 
 
 @pytest.mark.parametrize(

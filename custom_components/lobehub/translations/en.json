@@ -115,16 +115,10 @@
             "name": "New topic"
         },
         "run_saved_task": {
-            "description": "Run one saved LobeHub task by raw ID or identifier such as TASK-1.",
-            "fields": {
-                "continue_topic_id": {
-                    "name": "Continue topic ID"
-                },
-                "prompt": {
-                    "name": "Prompt"
-                },
-                "task": {
-                    "name": "Task"
+                "description": "Run one saved LobeHub task by task ID.",
+                "fields": {
+                    "task_id": {
+                        "name": "Task ID"
                 }
             },
             "name": "Run saved task"

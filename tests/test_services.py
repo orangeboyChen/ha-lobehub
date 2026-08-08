@@ -18,6 +18,7 @@ from custom_components.lobehub.services import (
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from custom_components.lobehub.exceptions import ApiError, ValidationError
 
 
 class _Services:
@@ -73,6 +74,9 @@ class _Runtime:
     def get_task(self, task):
         return {"task": {"id": task}, "topics": [{"id": "topic-1"}]}
 
+    def get_task_detail(self, task):
+        return {"id": task}
+
     def run_saved_task(self, task, **kwargs):
         return TaskResult(task_id=task, response_id="response-2", output_text="saved")
 
@@ -82,7 +86,7 @@ def test_services_register_and_return_normalized_responses() -> None:
 
     runtime = _Runtime()
     entry = SimpleNamespace(
-        entry_id="entry-1",
+        entry_id="entry-1", data={},
         state=ConfigEntryState.LOADED,
         options={},
         runtime_data=runtime,
@@ -115,7 +119,7 @@ def test_services_register_and_return_normalized_responses() -> None:
         assert (await call("update_agent_settings", {"runtime": "gateway", "model": "next"}))["results"][0]["runtime"] == "auto"
         assert (await call("list_tasks", {"limit": 3, "offset": 0}))["results"][0]["total"] == 1
         assert (await call("get_task", {"task": "task-1"}))["results"][0]["task"]["id"] == "task-1"
-        assert (await call("run_saved_task", {"task": "task-1"}))["results"][0]["response_id"] == "response-2"
+        assert (await call("run_saved_task", {"task_id": "task-1"}))["results"][0]["response_id"] == "response-2"
 
     asyncio.run(exercise())
     assert len(updates) == 5
@@ -175,3 +179,137 @@ def test_target_resolution_errors_for_missing_or_ambiguous_entries(monkeypatch) 
     monkeypatch.setattr(services, "_resolve_target_entries", lambda *args: entries)
     with pytest.raises(HomeAssistantError, match="exactly one"):
         _resolve_single_entry(hass, ServiceCall(data={}), service_name="list_agents")
+
+
+def test_run_saved_task_resolves_task_without_conversation_target() -> None:
+    runtime = _Runtime()
+    entry = SimpleNamespace(
+        entry_id="entry-1", state=ConfigEntryState.LOADED, data={}, options={}, runtime_data=runtime
+    )
+    hass = SimpleNamespace(
+        services=_Services(),
+        config_entries=SimpleNamespace(
+            async_loaded_entries=lambda domain: [entry],
+            async_update_entry=lambda *args, **kwargs: None,
+        ),
+    )
+
+    async def executor(func, *args):
+        return func(*args)
+
+    hass.async_add_executor_job = executor
+    async_register_services(hass)
+    result = asyncio.run(
+        hass.services.handlers[(DOMAIN, "run_saved_task")](
+            ServiceCall(data={"task_id": "task-1"})
+        )
+    )
+    assert result["results"][0]["task_id"] == "task-1"
+
+
+@pytest.mark.parametrize("error", [ApiError(404, "missing"), ValidationError("unconfigured")])
+def test_run_saved_task_skips_unavailable_entries(error) -> None:
+    class MissingRuntime(_Runtime):
+        def get_task_detail(self, task):
+            raise error
+
+    class MatchingRuntime(_Runtime):
+        pass
+
+    missing = SimpleNamespace(entry_id="missing", state=ConfigEntryState.LOADED, data={}, runtime_data=MissingRuntime())
+    matching = SimpleNamespace(entry_id="matching", state=ConfigEntryState.LOADED, data={}, runtime_data=MatchingRuntime())
+    hass = SimpleNamespace(
+        services=_Services(),
+        config_entries=SimpleNamespace(
+            async_loaded_entries=lambda domain: [missing, matching],
+            async_update_entry=lambda *args, **kwargs: None,
+        ),
+    )
+
+    async def executor(func, *args):
+        return func(*args)
+
+    hass.async_add_executor_job = executor
+    async_register_services(hass)
+    result = asyncio.run(
+        hass.services.handlers[(DOMAIN, "run_saved_task")](ServiceCall(data={"task_id": "task-1"}))
+    )
+    assert result["results"][0]["task_id"] == "task-1"
+
+
+def test_run_saved_task_reports_missing_and_duplicate_workspace() -> None:
+    def make_hass(entries):
+        hass = SimpleNamespace(
+            services=_Services(),
+            config_entries=SimpleNamespace(
+                async_loaded_entries=lambda domain: entries,
+                async_update_entry=lambda *args, **kwargs: None,
+            ),
+        )
+
+        async def executor(func, *args):
+            return func(*args)
+
+        hass.async_add_executor_job = executor
+        async_register_services(hass)
+        return hass
+
+    with pytest.raises(HomeAssistantError, match="not initialized"):
+        asyncio.run(
+            make_hass([]).services.handlers[(DOMAIN, "run_saved_task")](
+                ServiceCall(data={"task_id": "missing"})
+            )
+        )
+
+    first = SimpleNamespace(entry_id="one", state=ConfigEntryState.LOADED, data={}, runtime_data=_Runtime())
+    second = SimpleNamespace(entry_id="two", state=ConfigEntryState.LOADED, data={}, runtime_data=_Runtime())
+    first.runtime_data.agent_binding.workspace_id = "one"
+    second.runtime_data.agent_binding.workspace_id = "two"
+    with pytest.raises(HomeAssistantError, match="multiple"):
+        asyncio.run(
+            make_hass([first, second]).services.handlers[(DOMAIN, "run_saved_task")](
+                ServiceCall(data={"task_id": "task-1"})
+            )
+        )
+
+    first.runtime_data.agent_binding.workspace_id = None
+    second.runtime_data.agent_binding.workspace_id = None
+    second.data = {"base_url": "https://other.example", "api_key": "other"}
+    with pytest.raises(HomeAssistantError, match="multiple"):
+        asyncio.run(
+            make_hass([first, second]).services.handlers[(DOMAIN, "run_saved_task")](
+                ServiceCall(data={"task_id": "task-1"})
+            )
+        )
+
+
+def test_run_saved_task_rejects_targets_and_ignores_invalid_detail(monkeypatch) -> None:
+    runtime = _Runtime()
+    entry = SimpleNamespace(entry_id="entry", state=ConfigEntryState.LOADED, data={}, runtime_data=runtime)
+    hass = SimpleNamespace(
+        services=_Services(),
+        config_entries=SimpleNamespace(
+            async_loaded_entries=lambda domain: [entry],
+            async_update_entry=lambda *args, **kwargs: None,
+        ),
+    )
+
+    async def executor(func, *args):
+        return func(*args)
+
+    hass.async_add_executor_job = executor
+    async_register_services(hass)
+    monkeypatch.setattr(services, "TargetSelection", lambda data: SimpleNamespace(has_any_target=True))
+    with pytest.raises(HomeAssistantError, match="does not support"):
+        asyncio.run(
+            hass.services.handlers[(DOMAIN, "run_saved_task")](
+                ServiceCall(data={"task_id": "task-1", "entity_id": "conversation.test"})
+            )
+        )
+
+    monkeypatch.setattr(services, "TargetSelection", lambda data: SimpleNamespace(has_any_target=False))
+    runtime.get_task_detail = lambda task: {"id": "other"}
+    with pytest.raises(HomeAssistantError, match="not found"):
+        asyncio.run(
+            hass.services.handlers[(DOMAIN, "run_saved_task")](ServiceCall(data={"task_id": "task-1"}))
+        )

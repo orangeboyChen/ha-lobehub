@@ -19,9 +19,10 @@ from homeassistant.helpers.target import (
 
 from .const import (
     CONF_ASSIGNEE_AGENT_ID,
+    CONF_API_KEY,
+    CONF_BASE_URL,
     CONF_BOUND_DEVICE_ID,
     CONF_CONTEXT,
-    CONF_CONTINUE_TOPIC_ID,
     CONF_INSTRUCTION,
     CONF_LIMIT,
     CONF_MESSAGE,
@@ -29,11 +30,11 @@ from .const import (
     CONF_OFFSET,
     CONF_PARENT_TASK,
     CONF_PREVIOUS_RESPONSE_ID,
-    CONF_PROMPT,
     CONF_PROVIDER,
     CONF_RUNTIME,
     CONF_STATUSES,
     CONF_TASK,
+    CONF_TASK_ID,
     CONF_TOPIC_ID,
     CONF_TOPIC_POLICY,
     CONF_TOPIC_TITLE,
@@ -50,6 +51,7 @@ from .const import (
     SERVICE_UPDATE_AGENT_SETTINGS,
 )
 from .entry_state import build_options_with_runtime_state
+from .exceptions import ApiError, ValidationError
 from .models import normalize_runtime
 
 if TYPE_CHECKING:
@@ -133,9 +135,7 @@ GET_TASK_SCHEMA = _service_schema(
 
 RUN_SAVED_TASK_SCHEMA = _service_schema(
     {
-        vol.Required(CONF_TASK): str,
-        vol.Optional(CONF_CONTINUE_TOPIC_ID): str,
-        vol.Optional(CONF_PROMPT): str,
+        vol.Required(CONF_TASK_ID): str,
     }
 )
 
@@ -531,23 +531,52 @@ def async_register_services(hass: HomeAssistant) -> None:
         )
 
     async def handle_run_saved_task(call: ServiceCall) -> dict[str, Any]:
-        target_id, entry = _resolve_single_entry(
-            hass,
-            call,
-            service_name=SERVICE_RUN_SAVED_TASK,
-        )
+        if TargetSelection(call.data).has_any_target:
+            raise HomeAssistantError("run_saved_task does not support conversation targets")
+        entries = [
+            entry
+            for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+            if entry.state is ConfigEntryState.LOADED
+        ]
+        if not entries:
+            raise HomeAssistantError("LobeHub runtime is not initialized")
+        task_id = call.data[CONF_TASK_ID]
+        matches: dict[tuple[str | None, str | None, str | None], LobeHubConfigEntry] = {}
+        for candidate in entries:
+            try:
+                detail = await hass.async_add_executor_job(
+                    candidate.runtime_data.get_task_detail, task_id
+                )
+            except (ApiError, ValidationError):
+                continue
+            task = detail if isinstance(detail, dict) else None
+            if isinstance(task, dict) and (
+                str(task.get("id") or "") == task_id
+                or str(task.get("identifier") or "") == task_id
+            ):
+                binding = candidate.runtime_data.agent_binding
+                matches.setdefault(
+                    (
+                        binding.workspace_id,
+                        candidate.data.get(CONF_BASE_URL),
+                        candidate.data.get(CONF_API_KEY),
+                    ),
+                    candidate,
+                )
+        if not matches:
+            raise HomeAssistantError(f"Task {task_id} was not found")
+        if len(matches) > 1:
+            raise HomeAssistantError(f"Task {task_id} exists in multiple LobeHub workspaces")
+        entry = next(iter(matches.values()))
         result = await hass.async_add_executor_job(
             partial(
                 entry.runtime_data.run_saved_task,
-                call.data[CONF_TASK],
-                continue_topic_id=call.data.get(CONF_CONTINUE_TOPIC_ID),
-                prompt=call.data.get(CONF_PROMPT),
+                task_id,
             )
         )
         return _format_response(
             [
                 {
-                    "target": target_id,
                     **_binding_state(entry),
                     "task_id": result.task_id,
                     "task_identifier": result.task_identifier,

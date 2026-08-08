@@ -210,7 +210,7 @@ def test_list_agents_includes_configured_default_agent() -> None:
         (RUN_TASK_SCHEMA, {"instruction": "Summarize this"}),
         (LIST_TASKS_SCHEMA, {}),
         (GET_TASK_SCHEMA, {"task": "TASK-1"}),
-        (RUN_SAVED_TASK_SCHEMA, {"task": "TASK-1"}),
+        (RUN_SAVED_TASK_SCHEMA, {"task_id": "TASK-1"}),
         (LIST_AGENTS_SCHEMA, {}),
         (LIST_DEVICES_SCHEMA, {}),
         (UPDATE_AGENT_SETTINGS_SCHEMA, {"runtime": "auto"}),

@@ -100,8 +100,8 @@ class RuntimeIntegration:
     def get_task(self, task):
         return {"task": task}
 
-    def run_saved_task(self, task, *, continue_topic_id, prompt):
-        return {"task": task, "topic": continue_topic_id, "prompt": prompt}
+    def run_saved_task(self, task):
+        return {"task": task}
 
     def fetch_agent_binding(self, agent_id, *, workspace_id):
         return AgentBinding(agent_id=agent_id, title="Fresh", model="remote")
@@ -127,9 +127,7 @@ def test_runtime_delegates_operations_and_serializes_refreshed_state() -> None:
     assert runtime.list_devices() == [{"device_id": "device-1"}]
     assert runtime.discover_remote_options().models == ["model-a"]
     assert runtime.get_task("TASK-1") == {"task": "TASK-1"}
-    assert runtime.run_saved_task("TASK-1", continue_topic_id="topic", prompt="go") == {
-        "task": "TASK-1", "topic": "topic", "prompt": "go"
-    }
+    assert runtime.run_saved_task("TASK-1") == {"task": "TASK-1"}
 
     updated = runtime.update_agent_settings(
         model="new-model", provider=None, runtime="auto", bound_device_id=None,

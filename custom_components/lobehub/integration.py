@@ -702,39 +702,15 @@ class LobeHubIntegration:
     ) -> TaskResult:
         """Run one saved LobeHub task without rebinding the active HA conversation."""
 
-        if continue_topic_id:
-            task_topics = self.client.get_task_topics(
-                task,
-                workspace_id=self._require_agent_binding().workspace_id,
-            )
-            if not any(
-                str(
-                    topic.get("topicId")
-                    or topic.get("topic_id")
-                    or topic.get("id")
-                    or ""
-                )
-                == continue_topic_id
-                for topic in task_topics
-                if isinstance(topic, Mapping)
-            ):
-                raise ValidationError(
-                    f"Topic {continue_topic_id} does not belong to task {task}"
-                )
-
-        response = self.client.run_saved_task(
-            task,
-            continue_topic_id=continue_topic_id,
-            prompt=prompt,
-            workspace_id=self._require_agent_binding().workspace_id,
-        )
+        workspace_id = self._require_agent_binding().workspace_id
+        response = self.client.run_saved_task(task, workspace_id=workspace_id)
 
         operation_status = None
         operation_id = response.get("operationId")
         if isinstance(operation_id, str) and operation_id:
             operation_status = self.client.wait_for_operation(
                 operation_id,
-                workspace_id=self._require_agent_binding().workspace_id,
+                workspace_id=workspace_id,
             )
 
         output_text = ""
@@ -744,7 +720,7 @@ class LobeHubIntegration:
                 output_text = extract_assistant_text(
                     self.client.get_topic_messages(
                         response_topic_id,
-                        workspace_id=self._require_agent_binding().workspace_id,
+                        workspace_id=workspace_id,
                     ),
                     str(response.get("assistantMessageId") or ""),
                 )
@@ -756,7 +732,7 @@ class LobeHubIntegration:
             output_text = self.client.collect_stream_text(
                 self.client.get_agent_stream_events(
                     operation_id,
-                    workspace_id=self._require_agent_binding().workspace_id,
+                    workspace_id=workspace_id,
                 )
             )
 
